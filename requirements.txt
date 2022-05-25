@@ -1,0 +1,7 @@
+nmrglue
+numpy
+scipy
+pandas
+pluqin
+matplotlib
+tkinter

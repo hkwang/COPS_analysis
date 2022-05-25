@@ -37,6 +37,8 @@ class COPS_GUI:
         self.copnames = []
         self.copnums = []
         self.filetypes = (("all files","*.*"),("sparky files",'*.ucsf'),("NMRpipe files","*.ft3"))
+        self.dirname = os.getcwd()
+        print(self.dirname)
         
         self.pyr_on=BooleanVar(self.root)
         self.TMS = BooleanVar(self.root)
@@ -49,12 +51,14 @@ class COPS_GUI:
     def create_widgets(self):
         Label(self.root, text="GRADCOPs analysis", font=self.font_title).grid(row=1, column=2)
 
+        '''
         label1 = Label(self.root, text="directory",font=self.font_bold)
         label1.grid(row=2,column=2)    
         self.ent1=Entry(self.root,font=self.font_text, width=40)
         self.ent1.grid(row=4,column=2)
         b1=Button(self.root,text="Select",font=self.font_text,command=self.browsedir1)
         b1.grid(row=4,column=4)
+        '''
 
         label2 = Label(self.root, text='no-COPs spectrum',font=self.font_bold)
         label2.grid(row=5,column=2) 
@@ -213,7 +217,7 @@ class COPS_GUI:
 
     #initialize
     def init_analyzer(self):
-
+        os.chdir(self.dirname)
 
         if self.copnums[0]==0:
             self.copnums.pop(0)
@@ -224,14 +228,12 @@ class COPS_GUI:
         except:
             print('Initialization incomplete.')
     
-    def clear_dirs(self):
-        self.dirname = StringVar(self.root)
-        
+    def clear_dirs(self):        
         #collect all cops spectra
         self.copnames = []
         self.copnums = []
         
-        self.ent1.delete(0,END)
+        #self.ent1.delete(0,END)
         self.ent2.delete(0,END)
         self.ent3.delete(0,END)
         self.ent4.delete(0,END)
@@ -242,7 +244,7 @@ class COPS_GUI:
     def save_state(self):
         save_dict={'copnames':self.copnames, 'copnums':self.copnums,
                    'TMS':self.TMS.get(), 'pyr_on':self.pyr_on.get(), 
-                   'cops_mode':self.cops_mode.get(), 'dir':self.dirname}
+                   'cops_mode':self.cops_mode.get()}
         np.save('save_1.npy',save_dict)
         print('state save complete.')
         
@@ -252,7 +254,7 @@ class COPS_GUI:
             self.copnames = load_dict.get('copnames'); self.copnums=load_dict.get('copnums');
             self.TMS.set(load_dict.get('TMS'));self.pyr_on.set(load_dict.get('pyr_on'));
             self.cops_mode.set(load_dict.get('cops_mode')); self.dirname=load_dict.get('dir');
-            self.ent1.insert(END, self.dirname)
+            #self.ent1.insert(END, self.dirname)
             self.ent2.insert(END, 'COPs loaded')
             self.init_analyzer()
         except:

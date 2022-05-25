@@ -16,6 +16,7 @@ import scipy.optimize
 import scipy.io
 from scipy.interpolate import interp1d
 import nmrglue as ng
+import os
 
 
 ###To do: add a function to analyze non-pyruvate experiments.
@@ -60,19 +61,13 @@ class cops_analyze():
         #allows us to squash cops analysis variables into an array without gaps
         self.cop_num = len(self.cop_nums)
         self.mode = mode
-        
-        if self.mode=='HNCA':
-            self.init_HNCA()
-        elif self.mode=='HCA':
-            self.init_HCA()
-            
-        
-        
+        self.init_spectra(self.mode)
+
         ###
         #initialize simulated decoupling profiles
         ###
         
-        self.mat = scipy.io.loadmat('dec_profiles_named.mat')
+        self.mat = scipy.io.loadmat('./files/dec_profiles_named.mat')
         #self.mat.get('dec_profiles')[0]: frequency axis. self.mat.get('dec_profiles')[1]-[5]: decoupling profiles for gradcop 1, 3, 4, 5, 6.  
         self.cops = self.mat.get('dec_profiles')[0].reshape(1,-1)
         for i in self.cop_nums:
@@ -96,42 +91,57 @@ class cops_analyze():
     ###############################################
     #SECTION 0. EXPERIMENTAL LINESHAPE EXTRACTION # 
     ###############################################
+    def import_spectrum(self, filestr, dimension):
+        filetype = os.path.splitext(filestr)[1]
+        try:
+            if filetype=='.ucsf':
+                if dimension==3:
+                    dic, dat = ng.sparky.read_lowmem_3D(filestr)
+                elif dimension==2:
+                    dic, dat = ng.sparky.read_lowmem_2D(filestr)
+                unit_conv = [ng.sparky.make_uc(dic, dat, i) for i in range(dimension)] 
+            elif filetype=='.ft3' or filetype=='.dat':
+                if dimension==3:
+                    dic, dat = ng.pipe.read_lowmem_3D(filestr)
+                elif dimension==2:
+                    dic, dat = ng.pipe.read_lowmem_2D(filestr)
+                unit_conv = [ng.pipe.make_uc(dic, dat, i) for i in range(dimension)]
+        except:
+            raise ValueError('Check file format. Currently supports .ft3, .ucsf, .dat')
+        return dic, dat, unit_conv
     
-    def init_HNCA(self):
+    def init_spectra(self, mode):
         ###
         #initialize spectra
         ###
         #import nocop HNCA data
-        
+        if self.mode == 'HNCA':
+            dims = 3
+        elif self.mode == 'HCA':
+            dims = 2
         if self.pyr_on:
-            self.nocop_dic, self.nocop_dat = ng.pipe.read_lowmem_3D(self.copnames[0])
-
-            # make unit conversion object for each axis of the nocop HNCA spectrum. Indexes correspond to dimensions as follows:
+            # make unit conversion object for each axis of the nocop HNCA spectrum. 
+            #Indexes correspond to dimensions as follows:
             #i=0: 15N, i=1: 13CA, i=2: 1H
-            self.nocop_unit_convs = [ng.pipe.make_uc(self.nocop_dic, self.nocop_dat, i) for i in range(3)]   
-            
-            
+            self.nocop_dic, self.nocop_dat, self.nocop_unit_convs = self.import_spectrum(self.copnames[0], dims)
+        
+        ######
+        ######currently inefficient!
+        ######
         ##array of n dictionaries, 1 per COP spectrum
-        self.cop_dics = np.array([ng.pipe.read_lowmem_3D(self.copnames[i+self.pyr_on])[0] for i in range(self.cop_num)])
+        self.cop_dics = np.array([self.import_spectrum(self.copnames[i+self.pyr_on], dims)[0] for i in range(self.cop_num)])
         ##array of n datasets, 1 per COP spectrum. shape of array: [number of COPs, #points in w1 (15N), #pts in w2 (13C), #pts in w3 (1H)]
-        self.cop_dats = [ng.pipe.read_lowmem_3D(self.copnames[i+self.pyr_on])[1] for i in range(self.cop_num)]
-
-        '''                         
-        elif type(self.cop_num) is int:
-            ##array of 5 dictionaries, 1 per COP spectrum
-            self.cop_dics = np.array([ng.pipe.read_lowmem_3D(self.copnames[i]+'_cop%i.ft3' %(i+1))[0] for i in range(self.cop_num)])
-            ##array of 5 datasets, 1 per COP spectrum. shape of array: [number of COPs, #points in w1 (15N), #pts in w2 (13C), #pts in w3 (1H)]
-            self.cop_dats = [ng.pipe.read_lowmem_3D(data_str+'_cop%i.ft3' %(i+1))[1] for i in range(self.cop_num)] 
-        else: 
-            raise ValueError("Inconsistent datatype for cop_num parameter.")
-        '''      
-
+        self.cop_dats = [self.import_spectrum(self.copnames[i+self.pyr_on], dims)[1] for i in range(self.cop_num)]
 
         ##cop_num by 3 array, 1 nmrglue unit converter object per dimension per COP spectrum
         ##shape: [number of COPs, 3]
-        self.cop_unit_convs = np.array([[ng.pipe.make_uc(self.cop_dics[j], self.cop_dats[j], i) for i in range(3)] for j in range(self.cop_num)]) 
+        self.cop_unit_convs = np.array([self.import_spectrum(self.copnames[i+self.pyr_on], dims)[2] 
+                                        for i in range(self.cop_num)]) 
     
         return None
+    
+    
+    ###deprecate
     
     def init_HCA(self):
         #import nocop HCA data
@@ -362,6 +372,10 @@ class cops_analyze():
         
         if self.pyr_on:
             #strategy: optimize Cb coupling fraction in parallel to extract Cb directly
+            
+            ####
+            ##have to remove C_offset before alpha
+            ####
             hz, nocop_trace = self.extract1D(data_pt, self.nocop_dat, self.nocop_unit_convs, C_offset=-0.09, normalize=True)
             nocop_params = self.lineshape_fit(hz, nocop_trace)
             #unpack some nocop lineshape fit parameters

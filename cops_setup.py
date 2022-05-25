@@ -9,7 +9,7 @@ except:
     print("Check location of folder pluq and pluqin.py.")
  
 
-df = pd.read_excel('pyruvate_likelihood.xlsx')
+df = pd.read_excel('./files/pyruvate_likelihood.xlsx')
 df.index = df['Residue']
 
 
