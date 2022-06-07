@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-setup(name="COPS_analysis",
+setup(name="COPs_analysis",
     version='0.1',
     author="Harrison Wang",
     description="POKY plugin for GRADCOPs spectrum analysis", 
