@@ -1,7 +1,7 @@
 import os
 from cops_analysis import cops_analyze
 import numpy as np
-from cops_setup import *
+from cops_prediction import *
 
 try:
     import pluqin
@@ -15,6 +15,11 @@ s=__main__.main_session
 import tkinter.font
 from tkinter import *
 from tkinter.filedialog import askopenfilename, askdirectory
+
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, 
+NavigationToolbar2Tk)
 
 def main():
     program = COPS_GUI()
@@ -37,11 +42,12 @@ class COPS_GUI:
         self.copnames = []
         self.copnums = []
         self.filetypes = (("all files","*.*"),("sparky files",'*.ucsf'),("NMRpipe files","*.ft3"))
-        self.dirname = os.getcwd()
-        print(self.dirname)
+        self.tabledir = os.getcwd()
+        print(self.tabledir)
         
         self.pyr_on=BooleanVar(self.root)
         self.TMS = BooleanVar(self.root)
+        self.predict_plot=BooleanVar(self.root)
         
         self.cops_mode = StringVar(self.root)
         self.cops_mode.set("Select an Option")
@@ -51,54 +57,52 @@ class COPS_GUI:
     def create_widgets(self):
         Label(self.root, text="GRADCOPs analysis", font=self.font_title).grid(row=1, column=2)
 
-        '''
-        label1 = Label(self.root, text="directory",font=self.font_bold)
+        label1 = Label(self.root, text="peak list",font=self.font_bold)
         label1.grid(row=2,column=2)    
         self.ent1=Entry(self.root,font=self.font_text, width=40)
-        self.ent1.grid(row=4,column=2)
+        self.ent1.grid(row=4,column=1, columnspan=3)
         b1=Button(self.root,text="Select",font=self.font_text,command=self.browsedir1)
         b1.grid(row=4,column=4)
-        '''
 
         label2 = Label(self.root, text='no-COPs spectrum',font=self.font_bold)
-        label2.grid(row=5,column=2) 
+        label2.grid(row=5,column=2)
         self.ent2=Entry(self.root,font=self.font_text, width=40)
-        self.ent2.grid(row=6,column=2)
+        self.ent2.grid(row=6,column=1, columnspan=3)
         b2=Button(self.root,text="Select",font=self.font_text, command=self.browsefile)
         b2.grid(row=6,column=4)
 
         label4 = Label(self.root, text='GRADCOP 1 spectrum',font=self.font_bold)
         label4.grid(row=7,column=2) 
         self.ent3=Entry(self.root,font=self.font_text, width=40)
-        self.ent3.grid(row=8,column=2)
+        self.ent3.grid(row=8,column=1, columnspan=3)
         b3=Button(self.root,text="Select",font=self.font_text, command=self.browsefile1)
         b3.grid(row=8,column=4)
 
         label5 = Label(self.root, text='GRADCOP 3 spectrum',font=self.font_bold)
         label5.grid(row=9,column=2) 
         self.ent4=Entry(self.root,font=self.font_text, width=40)
-        self.ent4.grid(row=10,column=2)
+        self.ent4.grid(row=10,column=1, columnspan=3)
         b4=Button(self.root,text="Select",font=self.font_text, command=self.browsefile2)
         b4.grid(row=10,column=4)
 
         label6 = Label(self.root, text='GRADCOP 4 spectrum',font=self.font_bold)
         label6.grid(row=11,column=2) 
         self.ent5=Entry(self.root,font=self.font_text, width=40)
-        self.ent5.grid(row=12,column=2)
+        self.ent5.grid(row=12,column=1, columnspan=3)
         b5=Button(self.root,text="Select",font=self.font_text, command=self.browsefile3)
         b5.grid(row=12,column=4)
 
         label7 = Label(self.root, text='GRADCOP 5 spectrum',font=self.font_bold)
         label7.grid(row=13,column=2) 
         self.ent6=Entry(self.root,font=self.font_text, width=40)
-        self.ent6.grid(row=14,column=2)
+        self.ent6.grid(row=14,column=1, columnspan=3)
         b6=Button(self.root,text="Select",font=self.font_text, command=self.browsefile4)
         b6.grid(row=14,column=4)
 
         label8 = Label(self.root, text='GRADCOP 6 spectrum',font=self.font_bold)
         label8.grid(row=15,column=2) 
         self.ent7=Entry(self.root,font=self.font_text, width=40)
-        self.ent7.grid(row=16,column=2)
+        self.ent7.grid(row=16,column=1, columnspan=3)
         b7=Button(self.root,text="Select",font=self.font_text, command=self.browsefile5)
         b7.grid(row=16,column=4)
 
@@ -114,14 +118,20 @@ class COPS_GUI:
         self.c1 = Checkbutton(self.root, text='pyruvate labelled',variable=self.pyr_on, onvalue=True, offvalue=False)
         self.c1.grid(row=19,column=2)
         
-        self.c1 = Checkbutton(self.root, text='TMS referenced',variable=self.TMS, onvalue=True, offvalue=False)
-        self.c1.grid(row=19,column=1)
+        self.c2 = Checkbutton(self.root, text='TMS referenced',variable=self.TMS, onvalue=True, offvalue=False)
+        self.c2.grid(row=19,column=1)
+        
+        self.c3 = Checkbutton(self.root, text='plot on',variable=self.predict_plot, onvalue=True, offvalue=False)
+        self.c3.grid(row=20,column=4)
 
         b8=Button(self.root,text="Initialize",font=self.font_text, command=self.init_analyzer)
         b8.grid(row=20,column=1)
 
         b7=Button(self.root,text="calculate",font=self.font_text, command=self.calculate)
         b7.grid(row=20,column=2)
+        
+        b13=Button(self.root,text="predict",font=self.font_text, command=self.predict)
+        b13.grid(row=20,column=3)
 
         b8=Button(self.root,text="append",font=self.font_text)#, command=calculate)
         b8.grid(row=18,column=4)
@@ -144,9 +154,9 @@ class COPS_GUI:
 
     ##main directory
     def browsedir1(self):
-        self.dirname = askdirectory()
-        self.ent1.insert(END, self.dirname)
-        os.chdir(self.dirname)
+        self.tabledir = askopenfilename(title="Select a file", filetypes=(("SPARKY lists", "*.list"),("all files","*.*")))
+        if self.tabledir != '':
+            self.ent1.insert(END, self.tabledir)     
 
     ##nocop spectrum
     def browsefile(self):
@@ -211,19 +221,46 @@ class COPS_GUI:
                 freqs = np.array(peak.frequency)[[1,0,2]]
             else:
                 freqs = peak.frequency
+            print("___________ \n"+"New calculation")
+            print("\n"+"type probabilities:\n",print_probabilities(self.analyzer,CA, freqs, self.TMS.get(), self.pyr_on.get()))
 
-            print_probabilities(self.analyzer,CA, freqs, self.TMS.get(), self.pyr_on.get())
+    def predict(self):
+        peaks = s.selected_peaks()
+        for peak in peaks:
+            assign = peak.assignment
+            if self.cops_mode.get()=='HNCA':
+                freqs = np.array(peak.frequency)[[1,0,2]]
+            else:
+                freqs = peak.frequency
+            print("___________ \n"+"New prediction")
+            result = self.matcher.find_best_matches(freqs, gen_plot=self.predict_plot.get(), label=assign)
+            try:
+                self.plot(result)
+            except:
+                continue  
+                
+    def plot(self, plotfigure):
 
+        canvas = FigureCanvasTkAgg(plotfigure,
+                                   master = self.root)  
+        canvas.draw()
 
+        canvas.get_tk_widget().grid(row=23, column=1, columnspan=5)
+
+        toolbar = NavigationToolbar2Tk(canvas,
+                                       self.root)
+        toolbar.update()
+
+        canvas.get_tk_widget().grid(row=24, column=3)          
+            
+        
     #initialize
     def init_analyzer(self):
-        os.chdir(self.dirname)
-
         if self.copnums[0]==0:
             self.copnums.pop(0)
-
         try:
             self.analyzer = cops_analyze(self.copnames, mode=self.cops_mode.get(), pyruvate_on=self.pyr_on.get(), cop_num=self.copnums)
+            self.matcher = int_seq_match(self.tabledir, self.analyzer, cops_mode=self.cops_mode.get())
             print('Initialization complete.')
         except:
             print('Initialization incomplete.')
@@ -244,21 +281,21 @@ class COPS_GUI:
     def save_state(self):
         save_dict={'copnames':self.copnames, 'copnums':self.copnums,
                    'TMS':self.TMS.get(), 'pyr_on':self.pyr_on.get(), 
-                   'cops_mode':self.cops_mode.get()}
-        np.save('save_1.npy',save_dict)
+                   'cops_mode':self.cops_mode.get(), 'tabledir':self.tabledir}
+        np.save('COPS_savestate_1.npy',save_dict)
         print('state save complete.')
         
     def load_state(self):
         try:
-            load_dict = np.load('save_1.npy', allow_pickle=True).item()
+            load_dict = np.load('COPS_savestate_1.npy', allow_pickle=True).item()
             self.copnames = load_dict.get('copnames'); self.copnums=load_dict.get('copnums');
             self.TMS.set(load_dict.get('TMS'));self.pyr_on.set(load_dict.get('pyr_on'));
-            self.cops_mode.set(load_dict.get('cops_mode')); self.dirname=load_dict.get('dir');
-            #self.ent1.insert(END, self.dirname)
+            self.cops_mode.set(load_dict.get('cops_mode')); self.tabledir=load_dict.get('tabledir');
+            #self.ent1.insert(END, self.tabledir)
             self.ent2.insert(END, 'COPs loaded')
             self.init_analyzer()
         except:
-            print('Select directory, or save file missing.')
+            print('Save file missing or renamed.')
 
 
         

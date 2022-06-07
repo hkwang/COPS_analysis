@@ -93,20 +93,19 @@ class cops_analyze():
     ###############################################
     def import_spectrum(self, filestr, dimension):
         filetype = os.path.splitext(filestr)[1]
-        try:
-            if filetype=='.ucsf':
-                if dimension==3:
-                    dic, dat = ng.sparky.read_lowmem_3D(filestr)
-                elif dimension==2:
-                    dic, dat = ng.sparky.read_lowmem_2D(filestr)
-                unit_conv = [ng.sparky.make_uc(dic, dat, i) for i in range(dimension)] 
-            elif filetype=='.ft3' or filetype=='.dat':
-                if dimension==3:
-                    dic, dat = ng.pipe.read_lowmem_3D(filestr)
-                elif dimension==2:
-                    dic, dat = ng.pipe.read_lowmem_2D(filestr)
-                unit_conv = [ng.pipe.make_uc(dic, dat, i) for i in range(dimension)]
-        except:
+        if filetype=='.ucsf':
+            if dimension==3:
+                dic, dat = ng.sparky.read_lowmem_3D(filestr)
+            elif dimension==2:
+                dic, dat = ng.sparky.read_lowmem_2D(filestr)
+            unit_conv = [ng.sparky.make_uc(dic, dat, i) for i in range(dimension)] 
+        elif filetype=='.ft3' or filetype=='.dat':
+            if dimension==3:
+                dic, dat = ng.pipe.read_lowmem_3D(filestr)
+            elif dimension==2:
+                dic, dat = ng.pipe.read_lowmem_2D(filestr)
+            unit_conv = [ng.pipe.make_uc(dic, dat, i) for i in range(dimension)]
+        else:
             raise ValueError('Check file format. Currently supports .ft3, .ucsf, .dat')
         return dic, dat, unit_conv
     
