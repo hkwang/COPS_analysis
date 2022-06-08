@@ -67,11 +67,11 @@ class cops_analyze():
         #initialize simulated decoupling profiles
         ###
         
-        self.mat = scipy.io.loadmat('./files/dec_profiles_named.mat')
+        self.mat = np.loadtxt('./files/dec_profiles.csv')
         #self.mat.get('dec_profiles')[0]: frequency axis. self.mat.get('dec_profiles')[1]-[5]: decoupling profiles for gradcop 1, 3, 4, 5, 6.  
-        self.cops = self.mat.get('dec_profiles')[0].reshape(1,-1)
+        self.cops = self.mat[0].reshape(1,-1)
         for i in self.cop_nums:
-            self.cops=np.concatenate((self.cops, self.mat.get('dec_profiles')[i].reshape(1,-1)), axis=0)
+            self.cops=np.concatenate((self.cops, self.mat[i].reshape(1,-1)), axis=0)
 
         
         
