@@ -239,7 +239,7 @@ class cops_analyze():
             trace = slices@weights.T
             trace = np.array(trace)
         
-        normalizer=np.sum(trace)
+        normalizer=np.sum(np.abs(trace))
         
         if normalize:
             #normalize by peak volume

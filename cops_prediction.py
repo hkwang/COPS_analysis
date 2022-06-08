@@ -120,34 +120,33 @@ class int_seq_match():
     def remove_picked_copies(self, shifts, peak):
         peaks = np.ones(len(shifts)).reshape([-1,1])@peak.reshape([1,-1])
         diff = np.sum(np.abs(peaks-shifts)**2, axis = 1)
-        return shifts[diff>0.01]
+        return shifts[diff>0.1]
         
         
         
     #works for HNCA only
-    def pick_slice_peaks(self, peak, blockwidth=50, snr = 5):
+    def pick_slice_peaks(self, peak, blockwidth=10, snr = 5):
         ca = self.cops_analyzer
-        
-        peak_ind = ca.cop_unit_convs[0][1](peak[1], "ppm")
-        bound = ca.hz_to_idx(ca.cop_unit_convs[0][1],blockwidth)
         
         if self.cops_mode == 'HNCA':
             peak_ind = ca.cop_unit_convs[0][1](peak[1], "ppm")
             bound = ca.hz_to_idx(ca.cop_unit_convs[0][1],blockwidth)
-            datablock = ca.cop_dats[0][:,peak_ind-bound:peak_ind+bound,:]
+            datablock = ca.cop_dats[0][5:-5,peak_ind-bound:peak_ind+bound,5:-5]
         elif self.cops_mode == 'HCA':
             peak_ind = ca.cop_unit_convs[0][0](peak[0], "ppm")
             bound = ca.hz_to_idx(ca.cop_unit_convs[0][0],blockwidth)
-            datablock = ca.cop_dats[0][peak_ind-bound:peak_ind+bound,:]
+            datablock = ca.cop_dats[0][peak_ind-bound:peak_ind+bound,5:-5]
             
         results = ng.analysis.peakpick.pick(datablock, snr*np.std(datablock), cluster=False, table=False, est_params=False)
         
         results_shift = np.array(results)
         if self.cops_mode == 'HNCA':
             results_shift[:,1] = peak_ind
+            results_shift[:,0] +=5
+            results_shift[:,2] +=5
         elif self.cops_mode == 'HCA':
             results_shift[:,0] = peak_ind
-
+            results_shift[:,1] +=5
         #the below is why i would like a vectorizable unit conversion.
         results_shift_ppm = [[ca.cop_unit_convs[0][i].ppm(results_shift[j][i]) for i in range(len(results_shift[0]))] for j in range(len(results_shift))]
         results_shift_ppm = np.array(results_shift_ppm)
@@ -168,6 +167,7 @@ class int_seq_match():
             CA_diff = peak[1]-self.shifts_array[:,1]
         CA_likelihood = gaussian(CA_diff, 0, 0.05)
         ca = self.cops_analyzer
+        print(peak)
         data_internal = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
             
         correlations = np.corrcoef(data_internal, self.seq_slices)[1:,0]

@@ -225,6 +225,7 @@ class COPS_GUI:
             print(print_probabilities(self.analyzer,CA, freqs, self.TMS.get(), self.pyr_on.get()))
 
     def predict(self):
+        self.matcher = int_seq_match(self.analyzer, cops_mode=self.cops_mode.get(), peak_table_dir=self.tabledir)
         peaks = s.selected_peaks()
         for peak in peaks:
             assign = peak.assignment
@@ -258,8 +259,6 @@ class COPS_GUI:
     def init_analyzer(self):
         if self.copnums[0]==0:
             self.copnums.pop(0)
-            self.analyzer = cops_analyze(self.copnames, mode=self.cops_mode.get(), pyruvate_on=self.pyr_on.get(), cop_num=self.copnums)
-            self.matcher = int_seq_match(self.analyzer, cops_mode=self.cops_mode.get(), peak_table_dir=self.tabledir)
         try:
             self.analyzer = cops_analyze(self.copnames, mode=self.cops_mode.get(), pyruvate_on=self.pyr_on.get(), cop_num=self.copnums)
             self.matcher = int_seq_match(self.analyzer, cops_mode=self.cops_mode.get(), peak_table_dir=self.tabledir)
