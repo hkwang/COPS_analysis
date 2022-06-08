@@ -222,7 +222,7 @@ class COPS_GUI:
             else:
                 freqs = peak.frequency
             print("___________ \n"+"New calculation")
-            print("\n"+"type probabilities:\n",print_probabilities(self.analyzer,CA, freqs, self.TMS.get(), self.pyr_on.get()))
+            print(print_probabilities(self.analyzer,CA, freqs, self.TMS.get(), self.pyr_on.get()))
 
     def predict(self):
         peaks = s.selected_peaks()
@@ -258,9 +258,11 @@ class COPS_GUI:
     def init_analyzer(self):
         if self.copnums[0]==0:
             self.copnums.pop(0)
+            self.analyzer = cops_analyze(self.copnames, mode=self.cops_mode.get(), pyruvate_on=self.pyr_on.get(), cop_num=self.copnums)
+            self.matcher = int_seq_match(self.analyzer, cops_mode=self.cops_mode.get(), peak_table_dir=self.tabledir)
         try:
             self.analyzer = cops_analyze(self.copnames, mode=self.cops_mode.get(), pyruvate_on=self.pyr_on.get(), cop_num=self.copnums)
-            self.matcher = int_seq_match(self.tabledir, self.analyzer, cops_mode=self.cops_mode.get())
+            self.matcher = int_seq_match(self.analyzer, cops_mode=self.cops_mode.get(), peak_table_dir=self.tabledir)
             print('Initialization complete.')
         except:
             print('Initialization incomplete.')

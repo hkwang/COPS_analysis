@@ -174,10 +174,10 @@ class cops_analyze():
         self.cop_unit_convs = np.array([[ng.sparky.make_uc(self.cop_dics[j], self.cop_dats[j], i) for i in range(2)] for j in range(self.cop_num)])
         
         return None
-        
+   
     
     #given a spectrum and unit conversion triple, extract 1D trace from center of peak at data_pt_ppm. tw: trace width, Hertz. 
-    def extract1D(self, data_pt_ppm, spectrum, uc, sw=70, C_offset = 0, normalize=False):
+    def extract1D(self, data_pt, spectrum, uc, sw=70, C_offset = 0, normalize=False):
         '''
         DEFINITION
         __________
@@ -214,8 +214,8 @@ class cops_analyze():
         #convert data_pt_ppm to index
 
         if self.mode=='HNCA':
-            
-            idx = np.array([uc[0](data_pt_ppm[0], "ppm"), uc[1](data_pt_ppm[1]+C_offset, "ppm"), uc[2](data_pt_ppm[2], "ppm")])
+             
+            idx = np.array([uc[0](data_pt[0], "ppm"), uc[1](data_pt[1]+C_offset, "ppm"), uc[2](data_pt[2], "ppm")])
             #calculate indices for trace boundary, based on tw. 
             hz_bounds = self.hz_to_idx(uc[1], sw)
             hz_vals = np.linspace(-hz_bounds, hz_bounds, num=2*hz_bounds+1)*sw/hz_bounds
@@ -226,7 +226,9 @@ class cops_analyze():
             trace = np.tensordot(slices,weights.T@weights, axes=([0,2],[0,1]))
             trace = np.array(trace)
         elif self.mode=='HCA':
-            idx = np.array([uc[i](data_pt_ppm[i], "ppm") for i in range(len(uc))])
+            
+            idx = np.array([uc[i](data_pt[i], "ppm") for i in range(len(uc))])
+                
             #calculate indices for trace boundary, based on tw. 
             hz_bounds = self.hz_to_idx(uc[1], sw)
             hz_vals = np.linspace(-hz_bounds, hz_bounds, num=2*hz_bounds+1)*sw/hz_bounds
