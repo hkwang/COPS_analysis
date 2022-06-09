@@ -1,3 +1,7 @@
+#COPs analysis toolbox containing functions for
+# 1) amino acid type distributions given CA, CB, and pyruvate
+# 2) unsupervised and supervised lineshape matching
+
 from cops_analysis import cops_analyze
 import numpy as np
 import pandas as pd
@@ -9,14 +13,43 @@ try:
     import pluqin
 except:
     print("Check location of folder pluq and pluqin.py.")
- 
-
+    
+#read table with pyruvate likelihood distributions.
 df = pd.read_excel('./files/pyruvate_likelihood.xlsx')
 df.index = df['Residue']
 
 
 #predict type assignment by CA and CB
 def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on):
+    '''
+    DEFINITION
+    __________
+    given a 13C alpha chemical shift and a peak location, this function computes the probability of each amino acid type.
+    
+    PARAMETERS
+    __________
+    analyzer: cops_analyze object
+    cops_analyze object to conduct lineshape analysis and CB extraction.
+    
+    CA: float
+    13C alpha chemical shift
+    
+    shifts: 1D array
+    chemical shifts of active peak
+    
+    TMS: boolean
+    indicate if chemical shifts are referenced to TMS. If so, converts to DSS. 
+    
+    pyruvate_on: boolean
+    indicate if sample is pyruvate labelled. 
+    
+    OUTPUTS
+    __________
+    pandas DataFrame containing amino acid type distribution. 
+    
+    Also prints out the predicted Cb value. 
+    
+    '''
     global df
     try:     
         params, error = analyzer.CalcCB(shifts, simple_output=False)
@@ -45,6 +78,34 @@ def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on):
     
 #alter prediction using pyruvate lineshape
 def pyruvate_posterior(input_prob, pyruvate_frac, df, verbose=True):
+    '''
+    DEFINITION
+    __________
+    given an input amino acid type distribution and a pyruvate fraction, 
+    this function computes the posterior distribution conditioned on pyruvate.
+    
+    PARAMETERS
+    __________
+    input_prob: 2D array
+    prior probability of amino acid type based on Ca and Cb alone.
+    format: column 0: amino acid type. column 1: probability of that type. 
+    
+    pyruvate_frac: float
+    pyruvate Cb labeling fraction. 
+    
+    df: Pandas DataFrame
+    dataframe containing probability distributions of pyruvate fraction for each residue type. 
+    
+    verbose: boolean, default True
+    if verbose, prints out prior and conditional distributions. 
+    
+    OUTPUTS
+    __________
+    posterior: 2D array
+    posterior probability of amino acid type based on Ca, Cb, and pyruvate. 
+    format: column 0: amino acid type. column 1: probability of that type. 
+    
+    '''
     if verbose:
         print("\n prior probability from pluq:\n", pd.DataFrame({"type":input_prob[:,0], "probability":input_prob[:,1]}))
     
@@ -64,6 +125,12 @@ def pyruvate_posterior(input_prob, pyruvate_frac, df, verbose=True):
     return posterior
 
 def gaussian(x, mu, sig):
+    '''
+    DEFINITION
+    __________
+    this function returns the height at point x of a gaussian with mean mu and standard deviation sig.
+    
+    '''
     return 1/np.sqrt(2*np.pi*sig)*np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
     
 
@@ -81,6 +148,21 @@ class int_seq_match():
             pass
     
     def load_peak_table(self, peak_table_dir):
+            '''
+        DEFINITION
+        __________
+        Loads a peak table containing labeled peaks. reads chemical shifts and whether or not peak is sequential or internal.
+
+        PARAMETERS
+        __________
+        peak_table_dir: string
+        location of SPARKY peak table
+
+        OUTPUTS
+        __________
+        None. This fucntion updates the shifts_array instance and the tb_sequential instance with the peaks from the table.
+
+        '''
         if self.cops_mode == 'HCA':
             self.tb = pd.read_fwf(peak_table_dir, infer_nrows=300)
             self.tb = self.tb.rename(columns={'w1':'CA','w2':'HN'})
@@ -106,6 +188,11 @@ class int_seq_match():
         self.tb_sequential = self.tb[self.tb['is_sequential']]
     
     def load_1Ds(self):
+        '''
+        DEFINITION
+        __________
+        Loads 1D 13C slices of peaks in the peak table.  
+        '''
         ca = self.cops_analyzer
         try:
             self.seq_slices = np.array([np.array([ca.extract1D(self.shifts_array[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(self.shifts_array))])
@@ -113,10 +200,12 @@ class int_seq_match():
         except:
             raise ValueError("Error with loading 1D slices. Check peak list")
     
+    #reloads array of peak shifts
     def load_shifts_array(self, shifts):
         self.shifts_array = shifts
         self.load_1Ds()
     
+    #cleans shifts array of copies of the same peak as the active one
     def remove_picked_copies(self, shifts, peak):
         peaks = np.ones(len(shifts)).reshape([-1,1])@peak.reshape([1,-1])
         diff = np.sum(np.abs(peaks-shifts)**2, axis = 1)
@@ -126,6 +215,30 @@ class int_seq_match():
         
     #works for HNCA only
     def pick_slice_peaks(self, peak, blockwidth=10, snr = 5):
+        '''
+        DEFINITION
+        __________
+        
+        picks peaks in a slice around the active peak.
+
+        PARAMETERS
+        __________
+        
+        peak: 1D array 
+        chemical shifts (ppm) of active peak
+        
+        blockwidth: float
+        2*blockwidth is the CA range (in Hz) of the spectrum block in which peaks are picked
+        
+        snr: float
+        size of peak to search for. this number multiplies the standard deviation of intensity of the block 
+        
+
+        OUTPUTS
+        __________
+        None. This function updates the shifts_array instance with nearby peaks.
+
+        '''
         ca = self.cops_analyzer
         
         if self.cops_mode == 'HNCA':
@@ -155,7 +268,31 @@ class int_seq_match():
         
         
     
-    def find_best_matches(self, peak, num_best=5, gen_plot=False, label='current peak'):
+    def find_best_matches(self, peak, num_best=7, gen_plot=False, label='current peak'):
+        '''
+        DEFINITION
+        __________
+        ranks the highest-correlated peaks to the active peak.
+
+        PARAMETERS
+        __________
+        peak: 1D array
+        chemical shifts (ppm) of active peak
+        
+        num_best: int, default 7
+        number of ranked candidate peaks
+        
+        gen_plot: Boolean, default False
+        if true, returns a plot of the candidate peak lineshapes
+        
+        label: string, default 'current peak'
+        peak label on the plot
+
+        OUTPUTS
+        __________
+        If gen_plot, outputs a plot of the candidate peak lineshapes. Otherwise, prints table of best matches.
+
+        '''
         try: 
             self.shifts_array
         except:

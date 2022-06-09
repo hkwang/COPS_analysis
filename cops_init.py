@@ -1,3 +1,5 @@
+#A GUI for interactively analyzing COPs spectra.
+
 import os
 from cops_analysis import cops_analyze
 import numpy as np
@@ -22,12 +24,17 @@ from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
 NavigationToolbar2Tk)
 
 def main():
+    #run the TKinter window's main loop.
     program = COPS_GUI()
     program.root.mainloop()
     
 
 class COPS_GUI:
+    #A GUI for interactively analyzing COPs spectra.
+    
     def __init__(self):
+        
+        #Initialize TKinter window and format 
         self.root = Tk()
         self.root.title('GRADCOPs analysis')
         self.font_title = tkinter.font.Font(family = "Arial", 
@@ -36,15 +43,18 @@ class COPS_GUI:
                                          size = 14)
         self.font_text = tkinter.font.Font(family = "Arial", 
                                          size = 12)
-        self.analyzer = None
         
-        #collect all cops spectra
+        #Initialize objects for aiding COPs analysis
+        self.analyzer = None
+        self.matcher = None
+        
+        #instances of COPs filenames
         self.copnames = []
         self.copnums = []
         self.filetypes = (("all files","*.*"),("sparky files",'*.ucsf'),("NMRpipe files","*.ft3"))
-        self.tabledir = os.getcwd()
-        print(self.tabledir)
+        self.tabledir = None
         
+        #initialize Tkinter variables for specifying the experiment type
         self.pyr_on=BooleanVar(self.root)
         self.TMS = BooleanVar(self.root)
         self.predict_plot=BooleanVar(self.root)
@@ -57,6 +67,8 @@ class COPS_GUI:
     def create_widgets(self):
         Label(self.root, text="GRADCOPs analysis", font=self.font_title).grid(row=1, column=2)
 
+        
+        ##input directories
         label1 = Label(self.root, text="peak list",font=self.font_bold)
         label1.grid(row=2,column=2)    
         self.ent1=Entry(self.root,font=self.font_text, width=40)
@@ -106,15 +118,15 @@ class COPS_GUI:
         b7=Button(self.root,text="Select",font=self.font_text, command=self.browsefile5)
         b7.grid(row=16,column=4)
 
-        ##COPs experimself.ent type       
+        ##COPs experiment options       
         label3=Label(self.root, text='COPS experiment',font=self.font_text)
         label3.grid(row=17, column=1)
-
+        
         options_list = ["HNCA", "HCA", 'HN(co)CA']
         self.question_menu = OptionMenu(self.root, self.cops_mode, *options_list)
         self.question_menu.grid(row=17, column=2)
 
-        ##pyruvate on or off?
+        ##check boxes for options
         self.c1 = Checkbutton(self.root, text='pyruvate labelled',variable=self.pyr_on, onvalue=True, offvalue=False)
         self.c1.grid(row=19,column=2)
         
@@ -123,7 +135,8 @@ class COPS_GUI:
         
         self.c3 = Checkbutton(self.root, text='plot on',variable=self.predict_plot, onvalue=True, offvalue=False)
         self.c3.grid(row=20,column=4)
-
+        
+        ##buttons for analysis and control
         b8=Button(self.root,text="Initialize",font=self.font_text, command=self.init_analyzer)
         b8.grid(row=20,column=1)
 
@@ -151,7 +164,7 @@ class COPS_GUI:
         b12 = Button(self.root, text='load state',font=self.font_text, command=self.load_state)
         b12.grid(row=19,column=4)
 
-
+    ##functions called on file selection button press
     ##main directory
     def browsedir1(self):
         self.tabledir = askopenfilename(title="Select a file", filetypes=(("SPARKY lists", "*.list"),("all files","*.*")))
@@ -207,14 +220,16 @@ class COPS_GUI:
             self.ent7.insert(END, cop6_dir) 
 
 
-    #compute 
+    #button-press function for analyzing COPs lineshape and predicting amino acid type
 
     def calculate(self):
         peaks = s.selected_peaks()
+        
+        #filter out glycines
         for peak in peaks:
             CA = 0
             for i in peak.frequency:
-                if 45<i<70:
+                if 46<i<70:
                     CA = i
             
             if self.cops_mode.get()=='HNCA':
@@ -224,8 +239,10 @@ class COPS_GUI:
             print("___________ \n"+"New calculation")
             print(print_probabilities(self.analyzer,CA, freqs, self.TMS.get(), self.pyr_on.get()))
 
+    #button-press function for displaying candidate internal-sequential matches
     def predict(self):
-        self.matcher = int_seq_match(self.analyzer, cops_mode=self.cops_mode.get(), peak_table_dir=self.tabledir)
+        if self.tabledir != None:
+            self.matcher = int_seq_match(self.analyzer, cops_mode=self.cops_mode.get(), peak_table_dir=self.tabledir)
         peaks = s.selected_peaks()
         for peak in peaks:
             assign = peak.assignment
@@ -239,23 +256,20 @@ class COPS_GUI:
                 self.plot(result)
             except:
                 continue  
-                
+    
+    #plot lineshapes
     def plot(self, plotfigure):
-
         canvas = FigureCanvasTkAgg(plotfigure,
                                    master = self.root)  
         canvas.draw()
-
         canvas.get_tk_widget().grid(row=23, column=1, columnspan=5)
-
         toolbar = NavigationToolbar2Tk(canvas,
                                        self.root)
         toolbar.update()
-
         canvas.get_tk_widget().grid(row=24, column=3)          
             
         
-    #initialize
+    #initialize both objects
     def init_analyzer(self):
         if self.copnums[0]==0:
             self.copnums.pop(0)
@@ -266,6 +280,7 @@ class COPS_GUI:
         except:
             print('Initialization incomplete.')
     
+    #clear directories
     def clear_dirs(self):        
         #collect all cops spectra
         self.copnames = []
@@ -278,14 +293,16 @@ class COPS_GUI:
         self.ent5.delete(0,END)
         self.ent6.delete(0,END)
         self.ent7.delete(0,END)
-        
+      
+    #save to dictionary. Currently, there are no options to change the filename. 
     def save_state(self):
         save_dict={'copnames':self.copnames, 'copnums':self.copnums,
                    'TMS':self.TMS.get(), 'pyr_on':self.pyr_on.get(), 
                    'cops_mode':self.cops_mode.get(), 'tabledir':self.tabledir}
         np.save('COPS_savestate_1.npy',save_dict)
         print('state save complete.')
-        
+    
+    #load from dictionary.
     def load_state(self):
         try:
             load_dict = np.load('COPS_savestate_1.npy', allow_pickle=True).item()

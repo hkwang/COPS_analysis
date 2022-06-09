@@ -221,8 +221,8 @@ class cops_analyze():
             hz_vals = np.linspace(-hz_bounds, hz_bounds, num=2*hz_bounds+1)*sw/hz_bounds
 
             #1D slice through peak center, weight-added by tensor product to 1D 13C slices nearby (in the HN, N dimensions)
-            weights = np.array([[0.6, 0.8, 0.9, 1, 0.9, 0.8, 0.6]]) #weights vector to compute weighted sum
-            slices = np.array(spectrum[idx[0]-3:idx[0]+4, idx[1]-hz_bounds:idx[1]+hz_bounds+1,idx[2]-3:idx[2]+4])
+            weights = np.array([[0.6, 0.9, 1, 0.9, 0.6]]) #weights vector to compute weighted sum
+            slices = np.array(spectrum[idx[0]-2:idx[0]+3, idx[1]-hz_bounds:idx[1]+hz_bounds+1,idx[2]-2:idx[2]+3])
             trace = np.tensordot(slices,weights.T@weights, axes=([0,2],[0,1]))
             trace = np.array(trace)
         elif self.mode=='HCA':
