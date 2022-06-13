@@ -5,3 +5,4 @@ pandas
 pluqin
 matplotlib
 tkinter
+python>=3.10.4
