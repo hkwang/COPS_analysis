@@ -2,7 +2,7 @@ nmrglue
 numpy
 scipy
 pandas
-pluqin
 matplotlib
-tkinter
+tk
 python>=3.8
+pluqin
