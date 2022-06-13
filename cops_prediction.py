@@ -137,7 +137,6 @@ def gaussian(x, mu, sig):
 #predict sequential peaks
 class int_seq_match():
     def __init__(self, cops_analyzer, cops_mode='HCA', peak_table_dir=None):
-        
         self.cops_mode = cops_mode
         self.cops_analyzer = cops_analyzer
         
@@ -148,7 +147,7 @@ class int_seq_match():
             pass
     
     def load_peak_table(self, peak_table_dir):
-            '''
+        '''
         DEFINITION
         __________
         Loads a peak table containing labeled peaks. reads chemical shifts and whether or not peak is sequential or internal.
@@ -161,7 +160,6 @@ class int_seq_match():
         OUTPUTS
         __________
         None. This fucntion updates the shifts_array instance and the tb_sequential instance with the peaks from the table.
-
         '''
         if self.cops_mode == 'HCA':
             self.tb = pd.read_fwf(peak_table_dir, infer_nrows=300)
@@ -304,7 +302,6 @@ class int_seq_match():
             CA_diff = peak[1]-self.shifts_array[:,1]
         CA_likelihood = gaussian(CA_diff, 0, 0.05)
         ca = self.cops_analyzer
-        print(peak)
         data_internal = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
             
         correlations = np.corrcoef(data_internal, self.seq_slices)[1:,0]

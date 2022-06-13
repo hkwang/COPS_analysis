@@ -253,9 +253,10 @@ class COPS_GUI:
             print("___________ \n"+"New prediction")
             result = self.matcher.find_best_matches(freqs, gen_plot=self.predict_plot.get(), label=assign)
             try:
+                
                 self.plot(result)
             except:
-                continue  
+                pass 
     
     #plot lineshapes
     def plot(self, plotfigure):
