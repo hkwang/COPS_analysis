@@ -20,7 +20,7 @@ df.index = df['Residue']
 
 
 #predict type assignment by CA and CB
-def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on):
+def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on, verbose=False):
     '''
     DEFINITION
     __________
@@ -72,7 +72,7 @@ def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on):
     prediction=np.array(prediction).reshape(-1,2)
     if pyruvate_on:
         print('pyruvate fraction:', np.around(params[1],decimals=2))
-        prediction = pyruvate_posterior(prediction, params[1],df)
+        prediction = pyruvate_posterior(prediction, params[1],df, verbose=verbose)
     return pd.DataFrame({"type":prediction[:,0], "probability":prediction[:,1]})
     
     
@@ -266,7 +266,7 @@ class int_seq_match():
         
         
     
-    def find_best_matches(self, peak, num_best=7, gen_plot=False, label='current peak'):
+    def find_best_matches(self, peak, num_best=7, gen_plot=False, label='current peak', snr=None):
         '''
         DEFINITION
         __________
@@ -294,7 +294,7 @@ class int_seq_match():
         try: 
             self.shifts_array
         except:
-            self.pick_slice_peaks(peak)
+            self.pick_slice_peaks(peak, snr=snr)
             
         if self.cops_mode == 'HCA':
             CA_diff = peak[0]-self.shifts_array[:,0]
@@ -307,17 +307,30 @@ class int_seq_match():
         correlations = np.corrcoef(data_internal, self.seq_slices)[1:,0]
         correlations = np.multiply(correlations, CA_likelihood)
         
-        index_bestmatch = np.argsort(-correlations, axis = 0)
+        try:
+            assert(len(self.shifts_array)>0)
+            if len(self.shifts_array)<num_best:
+                num_best = len(self.shifts_array)
+        except:
+            raise ValueError('no peaks picked or read.')
+            
+        index_bestmatch = np.argsort(-correlations, axis = 0)[0:num_best]
         
-        correlations_output = correlations[index_bestmatch[0:num_best]]/np.sum(correlations[index_bestmatch[0:num_best]])
+        correlations_output = correlations[index_bestmatch]
         
         
         try:
-            labels_output = self.tb_sequential.index[index_bestmatch[0:num_best]]
+            labels_output = self.tb_sequential.index[index_bestmatch]
         except:
-            labels_output = np.around(self.shifts_array[index_bestmatch[0:num_best]], decimals=2).tolist()
+            labels_output = np.around(self.shifts_array[index_bestmatch], decimals=2).tolist()
             
-        print(pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2)}))
+        #Cb calculation
+        pred_CB = []
+        for i in index_bestmatch:
+            CB = ca.CalcCB(self.shifts_array[i])
+            pred_CB.append(CB)
+        
+        print(pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2), "CB": np.around(pred_CB, decimals=2)}))
         
         if gen_plot:
             data_internal_wide = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
@@ -338,7 +351,8 @@ class int_seq_match():
             for i in range(num_best):
                 for k in range(ca.cop_num):
                     if k==0:
-                        plt.plot(hz+400*k, self.seq_slices_wide[index_bestmatch[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4],label = labels_output[i], figure = fig)
+                        label_str = str(labels_output[i])+" CB: "+str(np.around(pred_CB[i], decimals=2))
+                        plt.plot(hz+400*k, self.seq_slices_wide[index_bestmatch[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4],label = label_str, figure = fig)
                     else:
                         plt.plot(hz+400*k, self.seq_slices_wide[index_bestmatch[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4], figure = fig)
 
