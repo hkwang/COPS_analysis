@@ -185,23 +185,27 @@ class int_seq_match():
         self.shifts_array = self.shifts_array[self.tb['is_sequential']]
         self.tb_sequential = self.tb[self.tb['is_sequential']]
     
-    def load_1Ds(self):
+    def load_1Ds(self, C_center=None):
         '''
         DEFINITION
         __________
-        Loads 1D 13C slices of peaks in the peak table.  
+        Loads 1D 13C slices of peaks in the peak table, centered at C_center (ppm).  
         '''
         ca = self.cops_analyzer
+        print(self.shifts_array)
+        #extract 1Ds from absolute center
+        temp_shifts = np.copy(self.shifts_array)
+        if C_center != None:
+            if self.cops_mode == 'HNCA':
+                temp_shifts[:,1] = C_center
+            elif self.cops_mode == 'HCA':
+                temp_shifts[:,0] = C_center
+
         try:
-            self.seq_slices = np.array([np.array([ca.extract1D(self.shifts_array[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(self.shifts_array))])
-            self.seq_slices_wide = np.array([np.array([ca.extract1D(self.shifts_array[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(self.shifts_array))])
+            self.seq_slices = np.array([np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(temp_shifts))])
+            self.seq_slices_wide = np.array([np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(temp_shifts))])
         except:
             raise ValueError("Error with loading 1D slices. Check peak list")
-    
-    #reloads array of peak shifts
-    def load_shifts_array(self, shifts):
-        self.shifts_array = shifts
-        self.load_1Ds()
     
     #cleans shifts array of copies of the same peak as the active one
     def remove_picked_copies(self, shifts, peak):
@@ -212,7 +216,7 @@ class int_seq_match():
         
         
     #works for HNCA only
-    def pick_slice_peaks(self, peak, blockwidth=10, snr = 5):
+    def pick_slice_peaks(self, peak, blockwidth=15, snr = 5):
         '''
         DEFINITION
         __________
@@ -240,11 +244,13 @@ class int_seq_match():
         ca = self.cops_analyzer
         
         if self.cops_mode == 'HNCA':
-            peak_ind = ca.cop_unit_convs[0][1](peak[1], "ppm")
+            CA_center = peak[1]
+            peak_ind = ca.cop_unit_convs[0][1](CA_center, "ppm")
             bound = ca.hz_to_idx(ca.cop_unit_convs[0][1],blockwidth)
             datablock = ca.cop_dats[0][5:-5,peak_ind-bound:peak_ind+bound,5:-5]
         elif self.cops_mode == 'HCA':
-            peak_ind = ca.cop_unit_convs[0][0](peak[0], "ppm")
+            CA_center = peak[0]
+            peak_ind = ca.cop_unit_convs[0][0](CA_center, "ppm")
             bound = ca.hz_to_idx(ca.cop_unit_convs[0][0],blockwidth)
             datablock = ca.cop_dats[0][peak_ind-bound:peak_ind+bound,5:-5]
             
@@ -252,17 +258,19 @@ class int_seq_match():
         
         results_shift = np.array(results)
         if self.cops_mode == 'HNCA':
-            results_shift[:,1] = peak_ind
+            results_shift[:,1] += peak_ind - bound
             results_shift[:,0] +=5
             results_shift[:,2] +=5
         elif self.cops_mode == 'HCA':
-            results_shift[:,0] = peak_ind
+            results_shift[:,0] += peak_ind - bound
             results_shift[:,1] +=5
+        print(results_shift)
         #the below is why i would like a vectorizable unit conversion.
         results_shift_ppm = [[ca.cop_unit_convs[0][i].ppm(results_shift[j][i]) for i in range(len(results_shift[0]))] for j in range(len(results_shift))]
         results_shift_ppm = np.array(results_shift_ppm)
         results_shift_ppm = self.remove_picked_copies(results_shift_ppm, peak)
-        self.load_shifts_array(results_shift_ppm)
+        self.shifts_array = results_shift_ppm
+        self.load_1Ds(C_center=CA_center)
         
         
     
@@ -351,7 +359,7 @@ class int_seq_match():
             for i in range(num_best):
                 for k in range(ca.cop_num):
                     if k==0:
-                        label_str = str(labels_output[i])+" CB: "+str(np.around(pred_CB[i], decimals=2))
+                        label_str = str(labels_output[i])
                         plt.plot(hz+400*k, self.seq_slices_wide[index_bestmatch[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4],label = label_str, figure = fig)
                     else:
                         plt.plot(hz+400*k, self.seq_slices_wide[index_bestmatch[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4], figure = fig)
