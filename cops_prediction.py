@@ -192,7 +192,6 @@ class int_seq_match():
         Loads 1D 13C slices of peaks in the peak table, centered at C_center (ppm).  
         '''
         ca = self.cops_analyzer
-        print(self.shifts_array)
         #extract 1Ds from absolute center
         temp_shifts = np.copy(self.shifts_array)
         if C_center != None:
@@ -253,9 +252,9 @@ class int_seq_match():
             peak_ind = ca.cop_unit_convs[0][0](CA_center, "ppm")
             bound = ca.hz_to_idx(ca.cop_unit_convs[0][0],blockwidth)
             datablock = ca.cop_dats[0][peak_ind-bound:peak_ind+bound,5:-5]
-            
-        results = ng.analysis.peakpick.pick(datablock, snr*np.std(datablock), cluster=False, table=False, est_params=False)
         
+        approx_noise = np.std(datablock)
+        results,_, amps = ng.analysis.peakpick.pick(datablock, snr*approx_noise, cluster=False, table=False, est_params=True)
         results_shift = np.array(results)
         if self.cops_mode == 'HNCA':
             results_shift[:,1] += peak_ind - bound
@@ -264,17 +263,17 @@ class int_seq_match():
         elif self.cops_mode == 'HCA':
             results_shift[:,0] += peak_ind - bound
             results_shift[:,1] +=5
-        print(results_shift)
         #the below is why i would like a vectorizable unit conversion.
         results_shift_ppm = [[ca.cop_unit_convs[0][i].ppm(results_shift[j][i]) for i in range(len(results_shift[0]))] for j in range(len(results_shift))]
         results_shift_ppm = np.array(results_shift_ppm)
         results_shift_ppm = self.remove_picked_copies(results_shift_ppm, peak)
         self.shifts_array = results_shift_ppm
         self.load_1Ds(C_center=CA_center)
+        return amps/approx_noise
         
         
     
-    def find_best_matches(self, peak, num_best=7, gen_plot=False, label='current peak', snr=None):
+    def find_best_matches(self, peak, num_best=7, gen_plot=False, label='current peak', snr=None, verbose=False):
         '''
         DEFINITION
         __________
@@ -302,7 +301,7 @@ class int_seq_match():
         try: 
             self.shifts_array
         except:
-            self.pick_slice_peaks(peak, snr=snr)
+            amps = self.pick_slice_peaks(peak, snr=snr)
             
         if self.cops_mode == 'HCA':
             CA_diff = peak[0]-self.shifts_array[:,0]
@@ -325,7 +324,8 @@ class int_seq_match():
         index_bestmatch = np.argsort(-correlations, axis = 0)[0:num_best]
         
         correlations_output = correlations[index_bestmatch]
-        
+        correlations_output = np.around(correlations_output, decimals=2)
+        amps = np.around(amps[index_bestmatch], decimals=0)
         
         try:
             labels_output = self.tb_sequential.index[index_bestmatch]
@@ -337,8 +337,10 @@ class int_seq_match():
         for i in index_bestmatch:
             CB = ca.CalcCB(self.shifts_array[i])
             pred_CB.append(CB)
-        
-        print(pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2), "CB": np.around(pred_CB, decimals=2)}))
+        if verbose:
+            print(pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2), "CB (ppm)": np.around(pred_CB, decimals=2), "amplitude (arb)": amps}))
+        else:
+            print(pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2)}))
         
         if gen_plot:
             data_internal_wide = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)

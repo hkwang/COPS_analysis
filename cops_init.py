@@ -145,7 +145,7 @@ class PredOptionWindow(Toplevel):
         Label(self, text='peak picking SNR:').grid(row=3, column=1)
         Entry(self, textvariable=self.main.SNR).grid(row=3, column=2)
         
-        c4 = Checkbutton(self, text='calculation verbose',variable=self.main.verbose, onvalue=True, offvalue=False)
+        c4 = Checkbutton(self, text='verbose output',variable=self.main.verbose, onvalue=True, offvalue=False)
         c4.grid(row=4,column=1)
          
 
@@ -183,6 +183,7 @@ class COPS_GUI:
         self.TMS = BooleanVar(self.root)
         self.predict_plot=BooleanVar(self.root)
         self.verbose = BooleanVar(self.root)
+        self.verbose.set(True)
         
         self.cops_mode = StringVar(self.root)
         self.cops_mode.set("Select an Option")
@@ -313,7 +314,7 @@ class COPS_GUI:
             else:
                 freqs = peak.frequency
             print("___________ \n"+"New prediction")
-            result = self.matcher.find_best_matches(freqs, gen_plot=self.predict_plot.get(), label=assign, snr=SNR)
+            result = self.matcher.find_best_matches(freqs, gen_plot=self.predict_plot.get(), label=assign, snr=SNR, verbose=self.verbose.get())
             try:
                 
                 self.plot(result)
