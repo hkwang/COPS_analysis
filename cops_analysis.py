@@ -95,15 +95,15 @@ class cops_analyze():
         filetype = os.path.splitext(filestr)[1]
         if filetype=='.ucsf':
             if dimension==3:
-                dic, dat = ng.sparky.read_lowmem_3D(filestr)
+                dic, dat = ng.sparky.read_3D(filestr)
             elif dimension==2:
-                dic, dat = ng.sparky.read_lowmem_2D(filestr)
+                dic, dat = ng.sparky.read_2D(filestr)
             unit_conv = [ng.sparky.make_uc(dic, dat, i) for i in range(dimension)] 
         elif filetype=='.ft3' or filetype=='.dat':
             if dimension==3:
-                dic, dat = ng.pipe.read_lowmem_3D(filestr)
+                dic, dat = ng.pipe.read_3D(filestr)
             elif dimension==2:
-                dic, dat = ng.pipe.read_lowmem_2D(filestr)
+                dic, dat = ng.pipe.read_2D(filestr)
             unit_conv = [ng.pipe.make_uc(dic, dat, i) for i in range(dimension)]
         else:
             raise ValueError('Check file format. Currently supports .ft3, .ucsf, .dat')
@@ -127,52 +127,21 @@ class cops_analyze():
         ######
         ######currently inefficient!
         ######
-        ##array of n dictionaries, 1 per COP spectrum
-        self.cop_dics = np.array([self.import_spectrum(self.copnames[i+self.pyr_on], dims)[0] for i in range(self.cop_num)])
-        ##array of n datasets, 1 per COP spectrum. shape of array: [number of COPs, #points in w1 (15N), #pts in w2 (13C), #pts in w3 (1H)]
-        self.cop_dats = [self.import_spectrum(self.copnames[i+self.pyr_on], dims)[1] for i in range(self.cop_num)]
+        self.cop_dics = []
+        self.cop_dats = []
+        self.cop_unit_convs = []
+        for i in range(self.cop_num):
+            imported = self.import_spectrum(self.copnames[i+self.pyr_on], dims)
+            ##array of n dictionaries, 1 per COP spectrum
+            self.cop_dics.append(imported[0])
+            ##array of n datasets, 1 per COP spectrum. shape of array: [number of COPs, #points in w1 (15N), #pts in w2 (13C), #pts in w3 (1H)]
+            self.cop_dats.append(imported[1])
+            ##cop_num by 3 array, 1 nmrglue unit converter object per dimension per COP spectrum
+            ##shape: [number of COPs, 3]
+            self.cop_unit_convs.append(imported[2])
+        self.cop_dics = np.array(self.cop_dics)
+        self.cop_unit_convs = np.array(self.cop_unit_convs)
 
-        ##cop_num by 3 array, 1 nmrglue unit converter object per dimension per COP spectrum
-        ##shape: [number of COPs, 3]
-        self.cop_unit_convs = np.array([self.import_spectrum(self.copnames[i+self.pyr_on], dims)[2] 
-                                        for i in range(self.cop_num)]) 
-    
-        return None
-    
-    
-    ###deprecate
-    
-    def init_HCA(self):
-        #import nocop HCA data
-        
-        if self.pyr_on:
-            self.nocop_dic, self.nocop_dat = ng.pipe.read_lowmem_2D(self.copnames[0])
-            # make unit conversion object for each axis of the nocop HCA spectrum. Indexes correspond to dimensions as follows:
-            #i=1: 13CA, i=2: 1H
-            self.nocop_unit_convs = [ng.pipe.make_uc(self.nocop_dic, self.nocop_dat, i) for i in range(2)]
-            
-        ##import COP HCA data depending on cop_num format
-        ##array of n dictionaries, 1 per COP spectrum
-        self.cop_dics = np.array([ng.sparky.read_lowmem_2D(self.copnames[i+self.pyr_on])[0] for i in range(self.cop_num)]) 
-        ##array of n datasets, 1 per COP spectrum. shape of array: [number of COPs, #points in w1 (15N), #pts in w2 (13C), #pts in w3 (1H)]
-        self.cop_dats = [ng.sparky.read_lowmem_2D(self.copnames[i+self.pyr_on])[1] for i in range(self.cop_num)]
-
-        
-
-        
-        '''
-        elif type(self.cop_num) is int:
-            ##array of 5 dictionaries, 1 per COP spectrum
-            self.cop_dics = np.array([ng.sparky.read_lowmem_2D(data_str+'%i.ucsf' %(i+1))[0] for i in range(self.cop_num)])
-            ##array of 5 datasets, 1 per COP spectrum. shape of array: [number of COPs, #points in w1 (15N), #pts in w2 (13C), #pts in w3 (1H)]
-            self.cop_dats = [ng.sparky.read_lowmem_2D(data_str+'%i.ucsf' %(i+1))[1] for i in range(self.cop_num)] 
-        else: 
-            raise ValueError("Inconsistent datatype for cop_num parameter.")
-        '''
-        ##cop_num by 2 array, 1 nmrglue unit converter object per dimension per COP spectrum
-        ##shape: [number of COPs, 2]
-        self.cop_unit_convs = np.array([[ng.sparky.make_uc(self.cop_dics[j], self.cop_dats[j], i) for i in range(2)] for j in range(self.cop_num)])
-        
         return None
    
     
@@ -245,6 +214,7 @@ class cops_analyze():
             #normalize by peak volume
             trace=trace/normalizer*(2*hz_bounds+1)
         return hz_vals, trace
+    
     
     def hz_to_idx(self, uconv, Hz):
         return uconv(0, "Hz")-uconv(Hz, "Hz")

@@ -143,8 +143,10 @@ class int_seq_match():
         try:
             self.load_peak_table(peak_table_dir)
             self.load_1Ds()
+            self.list_mode = True
         except:
-            pass
+            self.list_mode = False
+        
     
     def load_peak_table(self, peak_table_dir):
         '''
@@ -164,26 +166,25 @@ class int_seq_match():
         if self.cops_mode == 'HCA':
             self.tb = pd.read_fwf(peak_table_dir, infer_nrows=300)
             self.tb = self.tb.rename(columns={'w1':'CA','w2':'HN'})
-            try: 
-                self.tb = self.tb.set_index(self.tb['Assignment'])
-            except: 
-                raise ValueError("SPARKY table assignment column should be titled: 'Assignment'")
+                
             self.tb['is_sequential']=np.append([False], [len(self.tb['Assignment'][i+1]) > len(self.tb['Assignment'][i]) for i in range(len(self.tb)-1)])
             self.shifts_array = self.tb[['CA', 'HN']].to_numpy(dtype=np.float32)
             
         elif self.cops_mode == 'HNCA':
             self.tb = pd.read_fwf(peak_table_dir, infer_nrows=300)
             self.tb = self.tb.rename(columns={'w1':'CA','w2':'N','w3':'HN'})
-            try: 
-                self.tb = self.tb.set_index(self.tb['Assignment'])
-            except: 
-                raise ValueError("SPARKY table assignment column should be titled: 'Assignment'")
+
             self.tb['is_sequential']=np.append([False], [len(self.tb['Assignment'][i+1]) > len(self.tb['Assignment'][i]) for i in range(len(self.tb)-1)])
             self.shifts_array = self.tb[['CA', 'N', 'HN']].to_numpy(dtype=np.float32)
             self.shifts_array[:,[0,1]]=self.shifts_array[:,[1,0]]
         
-        self.shifts_array = self.shifts_array[self.tb['is_sequential']]
+        #self.shifts_array = self.shifts_array[self.tb['is_sequential']]
         self.tb_sequential = self.tb[self.tb['is_sequential']]
+        self.tb_internal = self.tb[~self.tb['is_sequential']]
+    
+    def conv_to_sparky_table(self, peak_table_dir):
+        return None
+    
     
     def load_1Ds(self, C_center=None):
         '''
@@ -201,8 +202,9 @@ class int_seq_match():
                 temp_shifts[:,0] = C_center
 
         try:
-            self.seq_slices = np.array([np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(temp_shifts))])
-            self.seq_slices_wide = np.array([np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(temp_shifts))])
+            #this would be faster with a vectorizable nmrglue unit conversion object
+            self.slices = np.array([np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(temp_shifts))])
+            self.slices_wide = np.array([np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(temp_shifts))])
         except:
             raise ValueError("Error with loading 1D slices. Check peak list")
     
@@ -263,6 +265,7 @@ class int_seq_match():
         elif self.cops_mode == 'HCA':
             results_shift[:,0] += peak_ind - bound
             results_shift[:,1] +=5
+            
         #the below is why i would like a vectorizable unit conversion.
         results_shift_ppm = [[ca.cop_unit_convs[0][i].ppm(results_shift[j][i]) for i in range(len(results_shift[0]))] for j in range(len(results_shift))]
         results_shift_ppm = np.array(results_shift_ppm)
@@ -273,7 +276,7 @@ class int_seq_match():
         
         
     
-    def find_best_matches(self, peak, num_best=7, gen_plot=False, label='current peak', snr=None, verbose=False):
+    def find_best_matches(self, peak, num_best=7, gen_plot=False, label='current peak', snr=None, verbose=False, sequential_mode=True):
         '''
         DEFINITION
         __________
@@ -298,52 +301,89 @@ class int_seq_match():
         If gen_plot, outputs a plot of the candidate peak lineshapes. Otherwise, prints table of best matches.
 
         '''
-        try: 
-            self.shifts_array
-        except:
+        
+        #if needed, pick peaks and extract amplitudes. #to do: set amplitudes for verbose mode.  
+        if self.list_mode: 
+            amps =[]
+        else:
             amps = self.pick_slice_peaks(peak, snr=snr)
-            
+        
+        #compute CA difference likelihood.
         if self.cops_mode == 'HCA':
             CA_diff = peak[0]-self.shifts_array[:,0]
         elif self.cops_mode == 'HNCA':
             CA_diff = peak[1]-self.shifts_array[:,1]
+            
         CA_likelihood = gaussian(CA_diff, 0, 0.05)
         ca = self.cops_analyzer
-        data_internal = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
-            
-        correlations = np.corrcoef(data_internal, self.seq_slices)[1:,0]
-        correlations = np.multiply(correlations, CA_likelihood)
+        data_current = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
         
+        #set indices to correlate to the relevant ones, if in list mode. 
+        if self.list_mode:
+            if sequential_mode:
+                relevant_indices_bool=self.tb['is_sequential']
+            else:
+                relevant_indices_bool=~self.tb['is_sequential']
+        else:
+            relevant_indices_bool=range(len(self.shifts_array))
+        
+        #compute correlation. 
+        correlations = np.corrcoef(data_current, self.slices[relevant_indices_bool])[1:,0]
+        correlations = np.multiply(correlations, CA_likelihood[relevant_indices_bool])
+        
+        #reset num_best if not in list mode and number of peaks picked is small. 
         try:
             assert(len(self.shifts_array)>0)
             if len(self.shifts_array)<num_best:
                 num_best = len(self.shifts_array)
         except:
             raise ValueError('no peaks picked or read.')
-            
+        
+        #pull out the top num_best matches and their data.     
         index_bestmatch = np.argsort(-correlations, axis = 0)[0:num_best]
         
+        #messy reindexing into shifts_array and tb
+        if self.list_mode:
+            df_index = self.tb[relevant_indices_bool].iloc[index_bestmatch].index.to_numpy()
+        else:
+            df_index = index_bestmatch
+
         correlations_output = correlations[index_bestmatch]
         correlations_output = np.around(correlations_output, decimals=2)
-        amps = np.around(amps[index_bestmatch], decimals=0)
         
-        try:
-            labels_output = self.tb_sequential.index[index_bestmatch]
-        except:
+        
+        if self.list_mode:
+            labels_output = self.tb['Assignment'][df_index]
+            labels_output=np.array(labels_output)
+        else:
             labels_output = np.around(self.shifts_array[index_bestmatch], decimals=2).tolist()
-            
-        #Cb calculation
-        pred_CB = []
-        for i in index_bestmatch:
-            CB = ca.CalcCB(self.shifts_array[i])
-            pred_CB.append(CB)
+
+        
         if verbose:
+            
+            
+            #amplitude lookup
+            if self.list_mode:
+                amps = np.zeros(len(df_index))
+            else:
+                amps = np.around(amps[index_bestmatch], decimals=0)
+                
+            #CB calculation
+            pred_CB = []
+            for i in df_index:
+                try:
+                    CB = ca.CalcCB(self.shifts_array[i])
+                except:
+                    CB = 0.0
+                pred_CB.append(CB)    
+
+                
             print(pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2), "CB (ppm)": np.around(pred_CB, decimals=2), "amplitude (arb)": amps}))
         else:
             print(pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2)}))
         
         if gen_plot:
-            data_internal_wide = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
+            data_current_wide = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
             
             cmap = ['b','r','m','y']
             
@@ -354,17 +394,17 @@ class int_seq_match():
 
             for k in range(ca.cop_num):
                 if k ==0:
-                    plt.plot(hz+400*k, data_internal_wide[0+len(hz)*k:len(hz)*(k+1)],'k', figure = fig, label =label)
+                    plt.plot(hz+400*k, data_current_wide[0+len(hz)*k:len(hz)*(k+1)],'k', figure = fig, label =label)
                 else:
-                    plt.plot(hz+400*k, data_internal_wide[0+len(hz)*k:len(hz)*(k+1)],'k', figure = fig)
+                    plt.plot(hz+400*k, data_current_wide[0+len(hz)*k:len(hz)*(k+1)],'k', figure = fig)
 
             for i in range(num_best):
                 for k in range(ca.cop_num):
                     if k==0:
                         label_str = str(labels_output[i])
-                        plt.plot(hz+400*k, self.seq_slices_wide[index_bestmatch[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4],label = label_str, figure = fig)
+                        plt.plot(hz+400*k, self.slices_wide[df_index[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4],label = label_str, figure = fig)
                     else:
-                        plt.plot(hz+400*k, self.seq_slices_wide[index_bestmatch[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4], figure = fig)
+                        plt.plot(hz+400*k, self.slices_wide[df_index[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4], figure = fig)
 
             fig.legend()
                 
