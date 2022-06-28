@@ -141,13 +141,17 @@ class int_seq_match():
         self.cops_analyzer = cops_analyzer
         
         try:
-            self.load_peak_table(peak_table_dir)
+            self.load_peak_table_dir(peak_table_dir)
             self.load_1Ds()
             self.list_mode = True
         except:
             self.list_mode = False
         
-    
+    def load_peak_table_dir(self, tb):
+        self.tb = tb
+        self.shifts_array = self.tb[['CA', 'N', 'HN']].to_numpy(dtype=np.float32)
+        self.shifts_array[:,[0,1]]=self.shifts_array[:,[1,0]]
+        
     def load_peak_table(self, peak_table_dir):
         '''
         DEFINITION
@@ -163,24 +167,23 @@ class int_seq_match():
         __________
         None. This fucntion updates the shifts_array instance and the tb_sequential instance with the peaks from the table.
         '''
+
+        
         if self.cops_mode == 'HCA':
             self.tb = pd.read_fwf(peak_table_dir, infer_nrows=300)
             self.tb = self.tb.rename(columns={'w1':'CA','w2':'HN'})
-                
-            self.tb['is_sequential']=np.append([False], [len(self.tb['Assignment'][i+1]) > len(self.tb['Assignment'][i]) for i in range(len(self.tb)-1)])
             self.shifts_array = self.tb[['CA', 'HN']].to_numpy(dtype=np.float32)
             
         elif self.cops_mode == 'HNCA':
             self.tb = pd.read_fwf(peak_table_dir, infer_nrows=300)
             self.tb = self.tb.rename(columns={'w1':'CA','w2':'N','w3':'HN'})
-
-            self.tb['is_sequential']=np.append([False], [len(self.tb['Assignment'][i+1]) > len(self.tb['Assignment'][i]) for i in range(len(self.tb)-1)])
             self.shifts_array = self.tb[['CA', 'N', 'HN']].to_numpy(dtype=np.float32)
             self.shifts_array[:,[0,1]]=self.shifts_array[:,[1,0]]
         
-        #self.shifts_array = self.shifts_array[self.tb['is_sequential']]
-        self.tb_sequential = self.tb[self.tb['is_sequential']]
-        self.tb_internal = self.tb[~self.tb['is_sequential']]
+        try:
+            self.tb['Assignment']
+        except:
+            self.tb['is_sequential']=np.append([False], [len(self.tb['Assignment'][i+1]) > len(self.tb['Assignment'][i]) for i in range(len(self.tb)-1)])
     
     def conv_to_sparky_table(self, peak_table_dir):
         return None
@@ -203,10 +206,22 @@ class int_seq_match():
 
         try:
             #this would be faster with a vectorizable nmrglue unit conversion object
-            self.slices = np.array([np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(temp_shifts))])
-            self.slices_wide = np.array([np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1) for j in range(len(temp_shifts))])
+            for j in range(len(temp_shifts)):
+                slice_1D= np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=40, normalize=True)[1] 
+                                             for i in range(ca.cop_num)]).reshape(-1)
+                slice_1D_wide = np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] 
+                                             for i in range(ca.cop_num)]).reshape(-1)
+                if j == 0:
+                    dslice_cop = ([slice_1D])
+                    dslice_cop_wide = ([slice_1D_wide])
+                else:
+                    dslice_cop = dslice_cop+[slice_1D]
+                    dslice_cop_wide = dslice_cop_wide + [slice_1D_wide]
+                    
+            self.slices = np.vstack(dslice_cop) 
+            self.slices_wide = np.vstack(dslice_cop_wide)
         except:
-            raise ValueError("Error with loading 1D slices. Check peak list")
+            print("Error with loading 1D slices. Check peak list!")
     
     #cleans shifts array of copies of the same peak as the active one
     def remove_picked_copies(self, shifts, peak):
@@ -307,67 +322,71 @@ class int_seq_match():
             amps =[]
         else:
             amps = self.pick_slice_peaks(peak, snr=snr)
-        
+
         #compute CA difference likelihood.
         if self.cops_mode == 'HCA':
             CA_diff = peak[0]-self.shifts_array[:,0]
         elif self.cops_mode == 'HNCA':
             CA_diff = peak[1]-self.shifts_array[:,1]
-            
+
         CA_likelihood = gaussian(CA_diff, 0, 0.05)
         ca = self.cops_analyzer
-        data_current = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=90, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
-        
+        data_current = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=40, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
+
         #set indices to correlate to the relevant ones, if in list mode. 
         if self.list_mode:
             if sequential_mode:
-                relevant_indices_bool=self.tb['is_sequential']
+                relevant_indices_bool=self.tb['is_sequential']*CA_likelihood>0.01
             else:
-                relevant_indices_bool=~self.tb['is_sequential']
+                relevant_indices_bool=~self.tb['is_sequential']*CA_likelihood>0.01
         else:
             relevant_indices_bool=range(len(self.shifts_array))
-        
-        #compute correlation. 
-        correlations = np.corrcoef(data_current, self.slices[relevant_indices_bool])[1:,0]
-        correlations = np.multiply(correlations, CA_likelihood[relevant_indices_bool])
+
+        relevant_indices = relevant_indices_bool.to_numpy().nonzero()[0]
+        print(relevant_indices)
         
         #reset num_best if not in list mode and number of peaks picked is small. 
         try:
-            assert(len(self.shifts_array)>0)
-            if len(self.shifts_array)<num_best:
-                num_best = len(self.shifts_array)
+            assert(len(relevant_indices)>0)
+            if len(relevant_indices)<num_best:
+                num_best = len(relevant_indices)
         except:
-            raise ValueError('no peaks picked or read.')
-        
+            return 'no peaks picked or read within CA range.', None
+
+        #compute correlation. 
+        correlations = np.corrcoef(data_current, self.slices[relevant_indices_bool])[1:,0]
+        correlations = np.multiply(correlations, CA_likelihood[relevant_indices_bool])
+
         #pull out the top num_best matches and their data.     
         index_bestmatch = np.argsort(-correlations, axis = 0)[0:num_best]
-        
-        #messy reindexing into shifts_array and tb
+
+
+        #cleaner reindexing
         if self.list_mode:
-            df_index = self.tb[relevant_indices_bool].iloc[index_bestmatch].index.to_numpy()
+            df_index = relevant_indices[index_bestmatch]
         else:
             df_index = index_bestmatch
 
         correlations_output = correlations[index_bestmatch]
         correlations_output = np.around(correlations_output, decimals=2)
-        
-        
+
+
         if self.list_mode:
             labels_output = self.tb['Assignment'][df_index]
             labels_output=np.array(labels_output)
         else:
             labels_output = np.around(self.shifts_array[index_bestmatch], decimals=2).tolist()
 
-        
+
         if verbose:
-            
-            
+
+
             #amplitude lookup
             if self.list_mode:
                 amps = np.zeros(len(df_index))
             else:
                 amps = np.around(amps[index_bestmatch], decimals=0)
-                
+
             #CB calculation
             pred_CB = []
             for i in df_index:
@@ -377,20 +396,20 @@ class int_seq_match():
                     CB = 0.0
                 pred_CB.append(CB)    
 
-                
-            print(pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2), "CB (ppm)": np.around(pred_CB, decimals=2), "amplitude (arb)": amps}))
+
+            out_df = pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2), "CB (ppm)": np.around(pred_CB, decimals=2), "amplitude (arb)": amps})
         else:
-            print(pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2)}))
-        
+            out_df = pd.DataFrame({"peak": labels_output, "likelihood":np.around(correlations_output, decimals=2)})
+
         if gen_plot:
             data_current_wide = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
-            
+
             cmap = ['b','r','m','y']
-            
+
             hz,_ = ca.extract1D(peak, ca.cop_dats[0], ca.cop_unit_convs[0], sw=150, normalize=True)
             hz_long = np.array([hz+400*i for i in range(ca.cop_num)]).reshape(-1)
 
-            fig = plt.figure(figsize=(12,4))
+            fig = plt.figure(figsize=(13,6))
 
             for k in range(ca.cop_num):
                 if k ==0:
@@ -401,13 +420,13 @@ class int_seq_match():
             for i in range(num_best):
                 for k in range(ca.cop_num):
                     if k==0:
-                        label_str = str(labels_output[i])
-                        plt.plot(hz+400*k, self.slices_wide[df_index[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4],label = label_str, figure = fig)
+                        label_str = str(labels_output[i])+', p:'+str(np.around(correlations_output, decimals=2)[i])
+                        plt.plot(hz+400*k, self.slices_wide[df_index[i]][0+len(hz)*k:len(hz)*(k+1)]-15*i,cmap[i%4],label = label_str, figure = fig)
                     else:
-                        plt.plot(hz+400*k, self.slices_wide[df_index[i]][0+len(hz)*k:len(hz)*(k+1)]-3*i,cmap[i%4], figure = fig)
+                        plt.plot(hz+400*k, self.slices_wide[df_index[i]][0+len(hz)*k:len(hz)*(k+1)]-15*i,cmap[i%4], figure = fig)
 
             fig.legend()
-                
-            return fig
+
+            return out_df, fig
         else:
-            return None
+            return out_df, None

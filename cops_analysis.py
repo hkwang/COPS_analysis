@@ -9,6 +9,7 @@ __author__ = "Harrison Wang"
 __email__ = "hwang6@fas.harvard.edu"
 
 import numpy as np
+import numpy.linalg
 import matplotlib.pyplot as plt
 import scipy
 from matplotlib.widgets import Slider, Button
@@ -208,7 +209,7 @@ class cops_analyze():
             trace = slices@weights.T
             trace = np.array(trace)
         
-        normalizer=np.sum(np.abs(trace))
+        normalizer=numpy.linalg.norm(trace)
         
         if normalize:
             #normalize by peak volume
@@ -304,7 +305,7 @@ class cops_analyze():
     ###########################
     
     #takes in data point coordinates in ppm, and outputs the triangulated Cb, directly optimized over lineshapes. 
-    def CalcCB(self, data_pt, fit_tol=10, simple_output=True):
+    def CalcCB(self, data_pt, fit_tol=10, sw=120,simple_output=True):
         '''
         DEFINITION
         __________
@@ -361,8 +362,8 @@ class cops_analyze():
             
 
         #reshapes experimental lineshape
-        hz = self.extract1D(data_pt, self.cop_dats[1], self.cop_unit_convs[1], normalize=True)[0]
-        cop_1Ds = np.array([self.extract1D(data_pt, self.cop_dats[i], self.cop_unit_convs[i], normalize=True)[1] for i in range(self.cop_num)])
+        hz = self.extract1D(data_pt, self.cop_dats[1], self.cop_unit_convs[1],sw=sw, normalize=True)[0]
+        cop_1Ds = np.array([self.extract1D(data_pt, self.cop_dats[i], self.cop_unit_convs[i], sw=sw, normalize=True)[1] for i in range(self.cop_num)])
         cop_1Ds = cop_1Ds.reshape(-1)
 
         '''bounds: [k_abs, pyr_fraction, Cb, c, j, lwid]'''
@@ -374,12 +375,12 @@ class cops_analyze():
             
             #initialize prior and bounds of fitting.
             if self.pyr_on:
-                p = [15,pyr_fraction,prior_cb,0,j_ab,lwid]
-                bounds = ([0,pyr_fraction-fit_tol/200,9,-5,j_ab-fit_tol/4,lwid-fit_tol/4],[40,pyr_fraction+fit_tol/200,46,5,j_ab+fit_tol/4,lwid+fit_tol/4])
+                p = [55,pyr_fraction,prior_cb,0,j_ab,lwid]
+                bounds = ([5,pyr_fraction-fit_tol/200,9,-5,j_ab-fit_tol/4,lwid-fit_tol/4],[150,pyr_fraction+fit_tol/200,46,5,j_ab+fit_tol/4,lwid+fit_tol/4])
                 params = self.lineshape_Cb_fit(hz, cop_1Ds, prior=p, bounding=bounds)
             else:
-                p = [15,1,prior_cb,0,j_ab,lwid]
-                bounds = ([0,0.999,9,-30,j_ab-20,lwid-5],[40,1,46,30,j_ab+20,lwid+5])
+                p = [55,1,prior_cb,0,j_ab,lwid]
+                bounds = ([5,0.999,9,-30,j_ab-40,lwid-5],[150,1,46,30,j_ab+40,lwid+5])
                 params = self.lineshape_Cb_fit(hz, cop_1Ds, prior=p, bounding=bounds)
                 
             
