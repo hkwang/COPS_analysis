@@ -20,7 +20,7 @@ df.index = df['Residue']
 
 
 #predict type assignment by CA and CB
-def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on, verbose=False):
+def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on, verbose=False, tms_shift = 2.6):
     '''
     DEFINITION
     __________
@@ -52,19 +52,21 @@ def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on, verbose=False):
     '''
     global df
     try:     
-        params, error = analyzer.CalcCB(shifts, simple_output=False)
+        params, error = analyzer.CalcCB(shifts, sw=40, simple_output=False)
     except: 
         print("No optimum found. invalid or glycine peak selection; or check your initialization.")
+        return None, 0
+        
     CB_predict = params[2]
 
     print("\n peak shifts:", shifts)
     print("predicted Cb:", str(round(CB_predict, 2))+"ppm")
     if CA < 50 and error >80:
         prediction = ['G',1]
-    elif CA > 55 and CB_predict > 43.5:
-        prediction = ['T',1]
+    elif CA > 52 and CB_predict > 43.5:
+        prediction = ['S/T',1]
     else:
-        pluq_out = pluqin.main([[CA+2.6*TMS, CB_predict+2.6*TMS]], 'cc')
+        pluq_out = pluqin.main([[CA+tms_shift*TMS, CB_predict+tms_shift*TMS]], 'cc')
         if pluq_out !=None:
             prediction = [[pluq_out[i][0], pluq_out[i][2]/100] for i in range(len(pluq_out))]
         else:
@@ -73,7 +75,7 @@ def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on, verbose=False):
     if pyruvate_on:
         print('pyruvate fraction:', np.around(params[1],decimals=2))
         prediction = pyruvate_posterior(prediction, params[1],df, verbose=verbose)
-    return pd.DataFrame({"type":prediction[:,0], "probability":prediction[:,1]})
+    return pd.DataFrame({"type":prediction[:,0], "probability":np.around(prediction[:,1].astype(float), decimals=2)}), round(CB_predict,2), error
     
     
 #alter prediction using pyruvate lineshape
@@ -336,14 +338,13 @@ class int_seq_match():
         #set indices to correlate to the relevant ones, if in list mode. 
         if self.list_mode:
             if sequential_mode:
-                relevant_indices_bool=self.tb['is_sequential']*CA_likelihood>0.01
+                relevant_indices_bool=self.tb['is_sequential']*CA_likelihood>0.1
             else:
-                relevant_indices_bool=~self.tb['is_sequential']*CA_likelihood>0.01
+                relevant_indices_bool=~self.tb['is_sequential']*CA_likelihood>0.1
         else:
             relevant_indices_bool=range(len(self.shifts_array))
 
         relevant_indices = relevant_indices_bool.to_numpy().nonzero()[0]
-        print(relevant_indices)
         
         #reset num_best if not in list mode and number of peaks picked is small. 
         try:

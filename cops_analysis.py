@@ -348,7 +348,7 @@ class cops_analyze():
             ####
             ##have to remove C_offset before alpha
             ####
-            hz, nocop_trace = self.extract1D(data_pt, self.nocop_dat, self.nocop_unit_convs, C_offset=-0.09, normalize=True)
+            hz, nocop_trace = self.extract1D(data_pt, self.nocop_dat, self.nocop_unit_convs, sw =sw,C_offset=-0.09, normalize=True)
             nocop_params = self.lineshape_fit(hz, nocop_trace)
             #unpack some nocop lineshape fit parameters
             pyr_fraction = nocop_params[1]
@@ -394,7 +394,7 @@ class cops_analyze():
             if sq_error<min_sq:
                 best_params = params
                 min_sq = sq_error
-                
+        print(min_sq)        
         if simple_output: 
             return best_params[2] #returns CB shift value in ppm
         else:
