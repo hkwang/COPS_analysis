@@ -308,6 +308,12 @@ class COPS_GUI:
         except:
             print("SNR is not a number.")
         for peak in peaks:
+            
+            try:
+                plt.cla()
+            except：
+                pass
+            
             assign = peak.assignment
             if self.cops_mode.get()=='HNCA':
                 freqs = np.array(peak.frequency)[[1,0,2]]
