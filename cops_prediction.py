@@ -61,7 +61,7 @@ def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on, verbose=False, t
 
     print("\n peak shifts:", shifts)
     print("predicted Cb:", str(round(CB_predict, 2))+"ppm")
-    if CA < 50 and error >80:
+    if CA < 50 and error >120:
         prediction = ['G',1]
     elif CA > 52 and CB_predict > 43.5:
         prediction = ['S/T',1]
@@ -204,12 +204,12 @@ class int_seq_match():
             if self.cops_mode == 'HNCA':
                 temp_shifts[:,1] = C_center
             elif self.cops_mode == 'HCA':
-                temp_shifts[:,0] = C_center
+                temp_shifts[:,0] = C_centerf
 
         try:
             #this would be faster with a vectorizable nmrglue unit conversion object
             for j in range(len(temp_shifts)):
-                slice_1D= np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=40, normalize=True)[1] 
+                slice_1D= np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=60, normalize=True)[1] 
                                              for i in range(ca.cop_num)]).reshape(-1)
                 slice_1D_wide = np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] 
                                              for i in range(ca.cop_num)]).reshape(-1)
@@ -291,7 +291,16 @@ class int_seq_match():
         self.load_1Ds(C_center=CA_center)
         return amps/approx_noise
         
-        
+    def find_best_correlation(self, data, slices):
+        for i in range(7):
+            corr = [np.corrcoef(data, np.roll(slices, i-3, axis=1))[1:,0]]
+            if i==0:
+                corrs = (corr)
+            else:
+                corrs = corrs+corr
+        corrs = np.vstack(corrs)
+        return np.max(corrs, axis=0)
+            
     
     def find_best_matches(self, peak, num_best=7, gen_plot=False, label='current peak', snr=None, verbose=False, sequential_mode=True):
         '''
@@ -331,9 +340,9 @@ class int_seq_match():
         elif self.cops_mode == 'HNCA':
             CA_diff = peak[1]-self.shifts_array[:,1]
 
-        CA_likelihood = gaussian(CA_diff, 0, 0.05)
+        CA_likelihood = gaussian(CA_diff, 0, 0.1)
         ca = self.cops_analyzer
-        data_current = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=40, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
+        data_current = np.array([ca.extract1D(peak, ca.cop_dats[i], ca.cop_unit_convs[i],sw=60, normalize=True)[1] for i in range(ca.cop_num)]).reshape(-1)
 
         #set indices to correlate to the relevant ones, if in list mode. 
         if self.list_mode:
@@ -341,10 +350,10 @@ class int_seq_match():
                 relevant_indices_bool=self.tb['is_sequential']*CA_likelihood>0.1
             else:
                 relevant_indices_bool=~self.tb['is_sequential']*CA_likelihood>0.1
+            relevant_indices = relevant_indices_bool.to_numpy().nonzero()[0]
         else:
-            relevant_indices_bool=range(len(self.shifts_array))
-
-        relevant_indices = relevant_indices_bool.to_numpy().nonzero()[0]
+            relevant_indices_bool = [True]*len(self.shifts_array)
+            relevant_indices=range(len(self.shifts_array))
         
         #reset num_best if not in list mode and number of peaks picked is small. 
         try:
@@ -355,7 +364,8 @@ class int_seq_match():
             return 'no peaks picked or read within CA range.', None
 
         #compute correlation. 
-        correlations = np.corrcoef(data_current, self.slices[relevant_indices_bool])[1:,0]
+        correlations = self.find_best_correlation(data_current, self.slices[relevant_indices_bool])
+        #correlations = np.corrcoef(data_current, self.slices[relevant_indices_bool])[1:,0]
         correlations = np.multiply(correlations, CA_likelihood[relevant_indices_bool])
 
         #pull out the top num_best matches and their data.     
@@ -380,8 +390,6 @@ class int_seq_match():
 
 
         if verbose:
-
-
             #amplitude lookup
             if self.list_mode:
                 amps = np.zeros(len(df_index))
@@ -392,7 +400,7 @@ class int_seq_match():
             pred_CB = []
             for i in df_index:
                 try:
-                    CB = ca.CalcCB(self.shifts_array[i])
+                    CB = ca.CalcCB(self.shifts_array[i], sw=40)
                 except:
                     CB = 0.0
                 pred_CB.append(CB)    

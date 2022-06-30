@@ -394,11 +394,11 @@ class cops_analyze():
             if sq_error<min_sq:
                 best_params = params
                 min_sq = sq_error
-        print(min_sq)        
+                
         if simple_output: 
             return best_params[2] #returns CB shift value in ppm
         else:
-            return best_params, 1/min_sq #returns every fit parameter: CB shift (ppm), linewidth, J coupling; as well as 1/error of the CB estimate
+            return best_params, min_sq #returns every fit parameter: CB shift (ppm), linewidth, J coupling; as well as 1/error of the CB estimate
 
     '''old function that uses the strategy of fitting individual lineshapes separately.'''
     #fit_tol: tolerance (Hz) for COP trace fitting

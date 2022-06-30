@@ -314,10 +314,10 @@ class COPS_GUI:
             else:
                 freqs = peak.frequency
             print("___________ \n"+"New prediction")
-            result = self.matcher.find_best_matches(freqs, gen_plot=self.predict_plot.get(), label=assign, snr=SNR, verbose=self.verbose.get())
+            out_df, fig = self.matcher.find_best_matches(freqs, gen_plot=self.predict_plot.get(), label=assign, snr=SNR, verbose=self.verbose.get())
             try:
-                
-                self.plot(result)
+                print(out_df)
+                self.plot(fig)
             except:
                 pass 
     
@@ -377,11 +377,7 @@ class COPS_GUI:
             self.ent2.insert(END, 'COPs loaded')
             self.init_analyzer()
         except:
-            print('Save file missing or renamed.')
-
-
-        
-                           
+            print('Save file missing or renamed.')           
                         
                    
 
