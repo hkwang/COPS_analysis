@@ -394,7 +394,10 @@ class cops_analyze():
             if sq_error<min_sq:
                 best_params = params
                 min_sq = sq_error
-                
+        
+        #normalize the min_sq error by length of 1D slice
+        min_sq = min_sq/len(hz)/params[0]
+        
         if simple_output: 
             return best_params[2] #returns CB shift value in ppm
         else:

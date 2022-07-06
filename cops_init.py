@@ -311,7 +311,7 @@ class COPS_GUI:
             
             try:
                 plt.cla()
-            except：
+            except:
                 pass
             
             assign = peak.assignment
