@@ -1,6 +1,7 @@
 #A GUI for interactively analyzing COPs spectra.
 
 import os
+os.chdir(__file__[:-12])
 from cops_analysis import cops_analyze
 import numpy as np
 from cops_prediction import *
@@ -8,15 +9,17 @@ from cops_prediction import *
 try:
     import pluqin
 except:
-    print("Check location of folder pluq and pluqin.py.")
+    print("\n"+ "Check location of folder pluq and pluqin.py.")
+    
 try: 
     import __main__
-    s=__main__.main_session
+    ccpn_session=__main__.current
 except:
     pass
 
 
 import tkinter.font
+import tkinter.scrolledtext as st
 from tkinter import *
 from tkinter.filedialog import askopenfilename, askdirectory
 
@@ -220,6 +223,8 @@ class COPS_GUI:
         btn1 = Button(self.root, text ="Exit", font=self.font_text, command = self.root.destroy)
         btn1.grid(row=19,column=5)
         
+        self.textbox = st.ScrolledText(self.root, width=50, height= 10, font = ("Arial", 10))
+        self.textbox.grid(row=29, column=1, columnspan=6)
     
 
         
@@ -280,52 +285,60 @@ class COPS_GUI:
 
 
     #button-press function for analyzing COPs lineshape and predicting amino acid type
-
+    def tkprint(self, string_in):
+        string_in = str(string_in)
+        self.textbox.insert (INSERT, '\n'+string_in)
+        self.textbox.see(END)
+        
     def calculate(self):
-        peaks = s.selected_peaks()
+        peak = ccpn_session.peak
         
         #filter out glycines
-        for peak in peaks:
-            CA = 0
-            for i in peak.frequency:
-                if 46<i<70:
-                    CA = i
-            
-            if self.cops_mode.get()=='HNCA':
-                freqs = np.array(peak.frequency)[[1,0,2]]
-            else:
-                freqs = peak.frequency
-            print("___________ \n"+"New calculation")
-            print(print_probabilities(self.analyzer,CA, freqs, self.TMS.get(), self.pyr_on.get(), verbose=self.verbose.get()))
 
+        CA = 0
+  
+        for i in peak.ppmPositions:
+            if 38<i<70:
+                CA = i
+
+        if self.cops_mode.get()=='HNCA':
+            freqs = np.array(peak.ppmPositions)[[2,1,0]]
+        else:
+            freqs = peak.frequency
+        self.tkprint("___________ \n"+"New calculation")
+        self.textbox.see(END)
+        self.tkprint(print_probabilities(self.analyzer,CA, freqs, self.TMS.get(), self.pyr_on.get(), verbose=self.verbose.get()))
+        
     #button-press function for displaying candidate internal-sequential matches
     def predict(self):
         if self.tabledir != None:
             self.matcher = int_seq_match(self.analyzer, cops_mode=self.cops_mode.get(), peak_table_dir=self.tabledir)
-        peaks = s.selected_peaks()
+        peak = ccpn_session.peak
         try:
             SNR = float(self.SNR.get())
         except:
-            print("SNR is not a number.")
-        for peak in peaks:
+            self.tkprint("SNR is not a number.")
             
-            try:
-                plt.cla()
-            except:
-                pass
-            
-            assign = peak.assignment
-            if self.cops_mode.get()=='HNCA':
-                freqs = np.array(peak.frequency)[[1,0,2]]
-            else:
-                freqs = peak.frequency
-            print("___________ \n"+"New prediction")
-            out_df, fig = self.matcher.find_best_matches(freqs, gen_plot=self.predict_plot.get(), label=assign, snr=SNR, verbose=self.verbose.get())
-            try:
-                print(out_df)
-                self.plot(fig)
-            except:
-                pass 
+        try:
+            plt.cla()
+        except:
+            pass
+
+        assign = peak.assignments
+        if self.cops_mode.get()=='HNCA':
+            freqs = np.array(peak.ppmPositions)[[2,1,0]]
+        else:
+            freqs = peak.ppmPositions
+        self.tkprint("___________ \n"+"New prediction")
+        test_CA_center = self.analyzer.cop_unit_convs[0][1](freqs[1],"ppm")
+        datablock = self.analyzer.cop_dats[0][5:-5, test_CA_center-10:test_CA_center+10, 5:-5]
+        out = ng.analysis.peakpick.pick(datablock, 50000)
+        out_df, fig = self.matcher.find_best_matches(freqs, gen_plot=self.predict_plot.get(), label=assign, snr=SNR, verbose=self.verbose.get())
+        try:
+            self.tkprint(out_df)
+            self.plot(fig)
+        except:
+            pass 
     
     #plot lineshapes
     def plot(self, plotfigure):
@@ -346,9 +359,9 @@ class COPS_GUI:
         try:
             self.analyzer = cops_analyze(self.copnames, mode=self.cops_mode.get(), pyruvate_on=self.pyr_on.get(), cop_num=self.copnums)
             self.matcher = int_seq_match(self.analyzer, cops_mode=self.cops_mode.get(), peak_table_dir=self.tabledir)
-            print('Initialization complete.')
+            self.tkprint('Initialization complete.')
         except:
-            print('Initialization incomplete.')
+            self.tkprint('Initialization incomplete.')
     
     #clear directories
     def clear_dirs(self):        
@@ -370,7 +383,7 @@ class COPS_GUI:
                    'TMS':self.TMS.get(), 'pyr_on':self.pyr_on.get(), 
                    'cops_mode':self.cops_mode.get(), 'tabledir':self.tabledir}
         np.save('COPS_savestate_1.npy',save_dict)
-        print('state save complete.')
+        self.tkprint('state save complete.')
     
     #load from dictionary.
     def load_state(self):
@@ -383,7 +396,7 @@ class COPS_GUI:
             self.ent2.insert(END, 'COPs loaded')
             self.init_analyzer()
         except:
-            print('Save file missing or renamed.')           
+            self.tkprint('Save file missing or renamed.')           
                         
                    
 

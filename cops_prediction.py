@@ -51,8 +51,10 @@ def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on, verbose=False, t
     
     '''
     global df
-    try:     
-        params, error = analyzer.CalcCB(shifts, sw=40, simple_output=False)
+    print(shifts)
+    try:
+        
+        params, error = analyzer.CalcCB(shifts, sw=60, simple_output=False)
     except: 
         print("No optimum found. invalid or glycine peak selection; or check your initialization.")
         return None, 0
@@ -204,7 +206,7 @@ class int_seq_match():
             if self.cops_mode == 'HNCA':
                 temp_shifts[:,1] = C_center
             elif self.cops_mode == 'HCA':
-                temp_shifts[:,0] = C_centerf
+                temp_shifts[:,0] = C_center
 
         try:
             #this would be faster with a vectorizable nmrglue unit conversion object
@@ -260,7 +262,6 @@ class int_seq_match():
 
         '''
         ca = self.cops_analyzer
-        
         if self.cops_mode == 'HNCA':
             CA_center = peak[1]
             peak_ind = ca.cop_unit_convs[0][1](CA_center, "ppm")
