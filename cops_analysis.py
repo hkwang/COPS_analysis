@@ -305,7 +305,7 @@ class cops_analyze():
     ###########################
     
     #takes in data point coordinates in ppm, and outputs the triangulated Cb, directly optimized over lineshapes. 
-    def CalcCB(self, data_pt, fit_tol=10, sw=120,simple_output=True):
+    def CalcCB(self, data_pt, fit_tol=10, sw=60,simple_output=True):
         '''
         DEFINITION
         __________

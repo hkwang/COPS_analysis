@@ -52,7 +52,7 @@ def print_probabilities(analyzer, CA, shifts, TMS, pyruvate_on, verbose=False, t
     '''
     global df
     try:     
-        params, error = analyzer.CalcCB(shifts, sw=40, simple_output=False)
+        params, error = analyzer.CalcCB(shifts, sw=60, simple_output=False)
     except: 
         print("No optimum found. invalid or glycine peak selection; or check your initialization.")
         return None, 0
@@ -143,7 +143,7 @@ class int_seq_match():
         self.cops_analyzer = cops_analyzer
         
         try:
-            self.load_peak_table_dir(peak_table_dir)
+            self.load_peak_table(peak_table_dir)
             self.load_1Ds()
             self.list_mode = True
         except:
@@ -211,7 +211,7 @@ class int_seq_match():
             for j in range(len(temp_shifts)):
                 slice_1D= np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=60, normalize=True)[1] 
                                              for i in range(ca.cop_num)]).reshape(-1)
-                slice_1D_wide = np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=150, normalize=True)[1] 
+                slice_1D_wide = np.array([ca.extract1D(temp_shifts[j], ca.cop_dats[i], ca.cop_unit_convs[i],sw=120, normalize=True)[1] 
                                              for i in range(ca.cop_num)]).reshape(-1)
                 if j == 0:
                     dslice_cop = ([slice_1D])
@@ -400,7 +400,7 @@ class int_seq_match():
             pred_CB = []
             for i in df_index:
                 try:
-                    CB = ca.CalcCB(self.shifts_array[i], sw=40)
+                    CB = ca.CalcCB(self.shifts_array[i], sw=60)
                 except:
                     CB = 0.0
                 pred_CB.append(CB)    
@@ -416,7 +416,6 @@ class int_seq_match():
             cmap = ['b','r','m','y']
 
             hz,_ = ca.extract1D(peak, ca.cop_dats[0], ca.cop_unit_convs[0], sw=150, normalize=True)
-            hz_long = np.array([hz+400*i for i in range(ca.cop_num)]).reshape(-1)
 
             fig = plt.figure(figsize=(13,6))
 

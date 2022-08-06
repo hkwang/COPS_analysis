@@ -101,7 +101,8 @@ class InitWindow(Toplevel):
         label3=Label(self, text='COPS experiment',font=self.main.font_text)
         label3.grid(row=17, column=1)
         
-        options_list = ["HNCA", "HCA", 'HN(co)CA']
+        options_list = ["HNCA"]
+        #options_list = ["HNCA", "HCA", 'HN(co)CA'] #other modes are at your own risk!
         self.question_menu = OptionMenu(self, self.main.cops_mode, *options_list)
         self.question_menu.grid(row=17, column=2)
 
@@ -147,6 +148,7 @@ class PredOptionWindow(Toplevel):
         
         c4 = Checkbutton(self, text='verbose output',variable=self.main.verbose, onvalue=True, offvalue=False)
         c4.grid(row=4,column=1)
+        
          
 
 class COPS_GUI:

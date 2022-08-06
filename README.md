@@ -9,6 +9,10 @@ a) as a python package: download files, cd to this directory, then run:
 pip install .
 pip install -r requirements.txt 
 
+Some requirement installations will fail. Additionally, python3.8 or above is required. 
+
+For examples of python package use, see development jupyter notebooks. 
+
 b) as a poky plugin:
 download files, make sure all requirements from requirements.txt are installed. 
 One way to do this is to cd to this directory, then run: 
@@ -18,8 +22,23 @@ Then,
     1) Start POKY
     2) Select spectrum
     3) use the 2-letter command "py", then click Load Module... and open cops_init.py
-    4) initialize with spectrum names and experiment settings
-    5) click on a peak, then click on "Calculate"
+    
+For use:
+    4) click on "Initialize" to initialize with spectrum names and experiment settings
+    5) click on a peak, then click on "Calculate" or "Predict". Output calculations and predictions 
+       will appear in the terminal window from which POKY was started.
+
+GUI features:
+    Saving and loading initial state
+    calculating CB ("Calculate")
+    Predicting best match lineshapes ("predict")
+        - If a peak list is included with the initialization, it is used as the search space for best matches
+        - If no peak list is included, NMRglue's automated peak picker is used instead, and the routine 
+          searches the entire spectrum. 
+    Change prediction options
+        - SNR: ask NMRglue to only pick peaks above a certain SNR. 
+        - turn prediction plot on and off. 
+        - turn verbose output on and off. If verbose output is on, CB for each candidate match is calculated. 
 
 
 Spectrum requirements: 
