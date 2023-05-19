@@ -5,10 +5,10 @@ https://github.com/kfritzsc/pluq
 
 To use: 
 a) as a python package: download files, cd to this directory, then run: 
-
+```bash
 pip install .
 pip install -r requirements.txt 
-
+```
 Some requirement installations will fail. Additionally, python3.8 or above is required. 
 
 For examples of python package use, see development jupyter notebooks. 
